@@ -1,6 +1,5 @@
 # Rust build artifacts
 target/
-
 /target/
 # Allow this specific file needed by cargo publish
 !/target/.rustc_info.json
@@ -15,4 +14,38 @@ target/
 # OS generated files
 .DS_Store
 ._*
-Thumbs.db 
+Thumbs.db
+
+# General
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# User specified
+.cursor/
+.windsurf/ 

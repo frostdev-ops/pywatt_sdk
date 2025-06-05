@@ -1,0 +1,15 @@
+include README.md
+include LICENSE*
+recursive-include pywatt_sdk *.py
+recursive-include core *.py
+recursive-include communication *.py
+recursive-include security *.py
+recursive-include data *.py
+recursive-include services *.py
+recursive-include internal *.py
+recursive-include pywatt_cli *.py
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .git*
+global-exclude *.tmp
+global-exclude *.log 
