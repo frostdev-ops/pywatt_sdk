@@ -1,0 +1,243 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Rust Documentation Rules
+
+<context>
+These rules define the documentation standards for the PyWatt-Rust project, ensuring comprehensive and consistent documentation across the codebase.
+</context>
+
+<rules>
+
+## Documentation Structure
+- Every public item must be documented
+- Module-level documentation must explain the module's purpose
+- Documentation should be complete sentences with proper punctuation
+- Include examples for non-trivial functionality
+- Document error conditions and panics
+
+## Doc Comment Format
+- Use `///` for item documentation
+- Use `//!` for module documentation
+- Start with a one-line summary
+- Follow with detailed explanation if needed
+- Use markdown formatting for clarity
+
+## Required Documentation Sections
+- Purpose/Description
+- Arguments (for functions)
+- Return values
+- Error conditions
+- Examples
+- Safety considerations (for unsafe code)
+- Performance considerations (when relevant)
+
+## Cross-References
+- Link to related items using `[Type]`
+- Use intra-doc links with `crate::module::item`
+- Reference relevant external documentation
+- Link to source code when helpful
+
+</rules>
+
+<templates>
+
+## Module Documentation
+```rust
+//! Module for handling user authentication and authorization.
+//!
+//! This module provides functionality for:
+//! - User registration and login
+//! - Password hashing and verification
+//! - Session management
+//! - Role-based access control
+```
+## Function Documentation
+```rust
+/// Creates a new user account in the system.
+///
+/// # Arguments
+/// * `username` - The desired username, must be unique
+/// * `password` - The raw password, will be hashed before storage
+///
+/// # Returns
+/// A `Result` containing the created [`User`] on success, or an
+/// [`AuthError`] if the operation fails.
+///
+/// # Errors
+/// Returns an error if:
+/// - Username is already taken
+/// - Password doesn't meet complexity requirements
+/// - Database operation fails
+///
+/// # Example
+/// ```
+/// let user = create_user("alice", "secure_password123").await?;
+/// assert_eq!(user.username, "alice");
+/// ```
+pub async fn create_user(
+    username: &str,
+    password: &str,
+) -> Result<User, AuthError> {
+    // Implementation
+}
+```
+
+## Struct Documentation
+```rust
+/// Represents a user in the system.
+///
+/// Each user has a unique identifier, authentication credentials,
+/// and associated metadata.
+///
+/// # Fields
+/// * `id` - Unique identifier for the user
+/// * `username` - Unique username for login
+/// * `password_hash` - Argon2 hash of the user's password
+/// * `created_at` - Timestamp of account creation
+///
+/// # Examples
+/// ```
+/// let user = User {
+///     id: Uuid::new_v4(),
+///     username: "alice".to_string(),
+///     password_hash: "...".to_string(),
+///     created_at: Utc::now(),
+/// };
+/// ```
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct User {
+    pub id: Uuid,
+    pub username: String,
+    pub password_hash: String,
+    pub created_at: DateTime<Utc>,
+}
+```
+
+</templates>
+
+<patterns>
+
+## Error Documentation
+```rust
+/// Errors that can occur during authentication operations.
+#[derive(Debug, thiserror::Error)]
+pub enum AuthError {
+    /// The requested username is already taken.
+    #[error("username {0} is already taken")]
+    UsernameTaken(String),
+
+    /// The provided password doesn't meet complexity requirements.
+    #[error("password does not meet requirements: {0}")]
+    WeakPassword(String),
+
+    /// A database operation failed.
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+}
+```
+
+## Configuration Documentation
+```rust
+/// Configuration for the authentication service.
+///
+/// # Environment Variables
+/// The following environment variables are used:
+/// - `AUTH_SECRET_KEY`: Secret key for JWT signing
+/// - `AUTH_TOKEN_EXPIRY`: Token expiration time in seconds
+///
+/// # Example
+/// ```no_run
+/// let config = AuthConfig::from_env()?;
+/// let auth_service = AuthService::new(config);
+/// ```
+#[derive(Debug, serde::Deserialize)]
+pub struct AuthConfig {
+    pub secret_key: String,
+    pub token_expiry: Duration,
+}
+```
+
+</patterns>
+
+<examples>
+
+## Module Documentation Example
+```rust
+//! Database connection and management module.
+//!
+//! This module provides functionality for:
+//! - Establishing database connections
+//! - Managing connection pools
+//! - Executing queries with proper error handling
+//!
+//! # Examples
+//!
+//! Creating a connection pool:
+//! ```
+//! let pool = create_pool(&config).await?;
+//! ```
+//!
+//! Executing a query:
+//! ```
+//! let users = get_users(&pool).await?;
+//! ```
+//!
+//! # Error Handling
+//!
+//! All database operations return a [`Result`] with a [`DatabaseError`]
+//! that provides detailed information about what went wrong.
+```
+
+## API Documentation Example
+```rust
+/// Handles user registration requests.
+///
+/// This endpoint creates a new user account with the provided credentials.
+/// The password is hashed using Argon2 before storage.
+///
+/// # Request Body
+/// ```json
+/// {
+///     "username": "alice",
+///     "password": "secure_password123",
+///     "email": "alice@example.com"
+/// }
+/// ```
+///
+/// # Responses
+/// - `201 Created` - Account created successfully
+/// - `400 Bad Request` - Invalid input data
+/// - `409 Conflict` - Username already taken
+/// - `500 Internal Server Error` - Server-side error
+///
+/// # Security
+/// This endpoint enforces password complexity requirements and
+/// rate limiting to prevent abuse.
+pub async fn register_handler(
+    State(state): State<AppState>,
+    Json(input): Json<RegisterRequest>,
+) -> AppResult<impl IntoResponse> {
+    // Implementation
+}
+```
+
+</examples>
+
+<tooling>
+
+## Documentation Tools
+- cargo doc (for generating documentation)
+- rustdoc (for documentation tests)
+- cargo test (for running doc tests)
+- markdown linters (for consistent formatting)
+
+## Documentation Checks
+- All public items must be documented
+- Examples in documentation must compile
+- Links must be valid
+- No broken cross-references
+
+</tooling> 

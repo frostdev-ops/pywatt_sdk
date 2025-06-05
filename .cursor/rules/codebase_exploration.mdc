@@ -1,0 +1,223 @@
+---
+description: These rules guide the exploration and understanding of the PyWatt-Rust codebase, a Rust rewrite of a Python FastAPI/Socket.IO chat backend.
+globs: 
+alwaysApply: false
+---
+# Codebase Exploration Rules
+
+<context>
+These rules guide the exploration and understanding of the PyWatt-Rust codebase, a Rust rewrite of a Python FastAPI/Socket.IO chat backend.
+</context>
+
+<rules>
+
+## Project Structure
+- Root directory contains configuration files and README
+- `src/` contains all Rust source code
+- `tests/` contains integration tests
+- `.cursor-rules/` contains AI assistant rules
+- `migrations/` contains database migrations
+
+## Core Components
+- `main.rs` - Application entry point
+- `settings.rs` - Configuration management
+- `state.rs` - Application state
+- `errors.rs` - Error types and handling
+- `models/` - Database models
+- `services/` - Business logic
+- `routes/` - API endpoints
+- `utils/` - Helper functions
+## Key Dependencies
+- Axum for web framework
+- SQLx for database access
+- Tokio for async runtime
+- Serde for serialization
+- Tower for middleware
+- Tracing for logging
+
+## Architecture Patterns
+- Hexagonal architecture
+- Repository pattern for data access
+- Service layer for business logic
+- Dependency injection via app state
+- Error propagation with custom types
+
+</rules>
+
+<exploration_strategies>
+
+## Understanding Dependencies
+1. Check `Cargo.toml` for external dependencies
+2. Review `use` statements in modules
+3. Examine service constructors for dependencies
+4. Look for trait implementations
+
+## Following Data Flow
+1. Start from API routes
+2. Follow service method calls
+3. Trace database operations
+4. Identify error handling paths
+
+## Finding Related Code
+1. Search for trait implementations
+2. Look for type usage
+3. Check for related tests
+4. Review error handling
+
+## Understanding Changes
+1. Check git history
+2. Review related tests
+3. Look for documentation updates
+4. Examine migration files
+
+</exploration_strategies>
+
+<patterns>
+
+## Service Pattern
+```rust
+pub struct ServiceName {
+    db_pool: PgPool,
+    config: Config,
+    // Other dependencies
+}
+
+impl ServiceName {
+    pub fn new(db_pool: PgPool, config: Config) -> Self {
+        Self { db_pool, config }
+    }
+    
+    pub async fn method(&self) -> AppResult<T> {
+        // Implementation
+    }
+}
+```
+
+## Route Pattern
+```rust
+pub fn router() -> Router {
+    Router::new()
+        .route("/path", get(handler))
+        .route("/other", post(other_handler))
+        .with_state::<AppState>()
+}
+
+async fn handler(
+    State(state): State<AppState>,
+    // Other extractors
+) -> AppResult<impl IntoResponse> {
+    // Implementation
+}
+```
+
+## Model Pattern
+```rust
+#[derive(Debug, sqlx::FromRow)]
+pub struct Model {
+    pub id: Uuid,
+    // Fields
+}
+
+impl Model {
+    // Methods
+}
+```
+
+</patterns>
+
+<key_concepts>
+
+## Authentication Flow
+1. Client sends credentials
+2. Server validates and creates JWT
+3. JWT included in subsequent requests
+4. Server validates JWT on protected routes
+
+## Database Operations
+1. Connection pool in app state
+2. Services access pool via dependency injection
+3. SQLx for type-safe queries
+4. Transactions for multi-step operations
+
+## Error Handling
+1. Custom error types
+2. Error propagation with `?`
+3. Error mapping with `From`
+4. Consistent error responses
+
+## WebSocket Handling
+1. Connection upgrade in routes
+2. Message handling in services
+3. Broadcast for multi-client communication
+4. Connection state management
+
+</key_concepts>
+
+<examples>
+
+## Finding Service Usage
+```rust
+// In routes/some_route.rs
+pub async fn handler(
+    State(state): State<AppState>,
+) -> AppResult<impl IntoResponse> {
+    // Service is accessed via app state
+    let result = state.some_service.method().await?;
+    Ok(Json(result))
+}
+
+// In state.rs
+pub struct AppState {
+    pub some_service: Arc<SomeService>,
+    // Other services
+}
+```
+
+## Following Data Flow
+```rust
+// In routes/user.rs
+pub async fn create_user(
+    State(state): State<AppState>,
+    Json(input): Json<CreateUser>,
+) -> AppResult<impl IntoResponse> {
+    // Flow starts here
+    let user = state.user_service
+        .create_user(input)
+        .await?;
+    
+    Ok((StatusCode::CREATED, Json(user)))
+}
+
+// In services/user.rs
+impl UserService {
+    pub async fn create_user(
+        &self,
+        input: CreateUser,
+    ) -> AppResult<User> {
+        // Continues to database
+        let user = sqlx::query_as!(/* ... */)
+            .fetch_one(&self.db_pool)
+            .await?;
+            
+        Ok(user)
+    }
+}
+```
+
+</examples>
+
+<tooling>
+
+## Exploration Tools
+- cargo-doc for documentation
+- cargo-expand for macro expansion
+- rust-analyzer for code navigation
+- cargo-audit for dependency analysis
+
+## Development Tools
+- rustfmt for code formatting
+- clippy for linting
+- cargo-watch for development
+- cargo-test for testing
+
+</tooling> 

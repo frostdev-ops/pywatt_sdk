@@ -1,0 +1,176 @@
+---
+trigger: model_decision
+description: The application state management system provides a centralized way to manage shared resources, services, and configuration across the entire application. It implements a dependency injection pattern to make services available throughout the application while maintaining clean separation of concerns.
+globs: 
+---
+# Application State Management
+
+## Purpose
+The application state management system provides a centralized way to manage shared resources, services, and configuration across the entire application. It implements a dependency injection pattern to make services available throughout the application while maintaining clean separation of concerns.
+
+## Key Types & Structures
+```rust
+pub struct AppState {
+    // Core Infrastructure
+    pub db_pool: PgPool,
+    pub settings: Arc<Settings>,
+    pub redis_client: RedisClient,
+    
+    // Core Services
+    pub auth_service: Arc<AuthService>,
+    pub permission_service: Arc<PermissionService>,
+    pub email_service: Arc<dyn EmailService + Send + Sync>,
+    pub user_service: Arc<UserService>,
+    
+    // API & Authentication
+    pub api_key_service: Arc<ApiKeyService>,
+    pub session_service: Arc<SessionService>,
+    
+    // Chat & LLM Services
+    pub chat_service: Arc<ChatService>,
+    pub llm_service: Arc<LlmService>,
+    pub memory_service: Arc<MemoryService>,
+    pub embedding_service: Arc<EmbeddingService>,
+    pub chat_orchestration_service: Arc<ChatOrchestrationService>,
+    
+    // Business Services
+    pub config_service: Arc<ConfigService>,
+    pub document_service: Arc<DocumentService>,
+    pub subscription_service: Arc<SubscriptionService>,
+    pub customer_service: Arc<CustomerService>,
+    pub product_service: Arc<ProductService>,
+    pub invoice_service: Arc<InvoiceService>,
+    pub payment_service: Arc<PaymentService>,
+    pub financial_service: Arc<FinancialService>,
+    pub estimate_service: Arc<EstimateService>,
+    
+    // WebSocket State
+    pub ws_state: Arc<WebSocketState>,
+}
+```
+
+## Design Patterns
+### Dependency Injection
+- **Purpose**: Provides a clean way to share services and resources across the application
+- **Implementation**: Services are wrapped in `Arc` for thread-safe reference counting
+- **Usage**: Services are injected via constructor dependency injection and accessed through state extraction in handlers
+
+### Service Locator
+- **Purpose**: Allows handlers to extract only the services they need
+- **Implementation**: Uses Axum's `FromRef` trait implementations
+- **Usage**: Services can be extracted individually in handlers using `State<Arc<ServiceType>>`
+
+### Thread-Safe Sharing
+- **Purpose**: Enables concurrent access to services across multiple worker threads
+- **Implementation**: All services are wrapped in `Arc` for atomic reference counting
+- **Usage**: Services can be cloned and shared across threads safely
+
+## Error Handling
+### Error Types
+```rust
+pub enum AppError {
+    DatabaseConnectionError(String),
+    MigrationError(String),
+    ConfigurationError(String),
+    // ... other error variants
+}
+```
+
+### Error Propagation
+- Services use `Result<T, AppError>` for error handling
+- Errors are propagated up the call stack using the `?` operator
+- Custom error types implement `From` trait for convenient conversion
+
+## Usage Examples
+```rust
+// Creating AppState
+async fn create_app_state() -> AppState {
+    let settings = Settings::new()?;
+    let db_pool = PgPoolOptions::new()
+        .max_connections(10)
+        .connect(&settings.database.url)
+        .await?;
+    
+    let permission_service = Arc::new(PermissionService::new(db_pool.clone()));
+    // ... initialize other services
+    
+    AppState {
+        db_pool,
+        settings: Arc::new(settings),
+        permission_service,
+        // ... other services
+    }
+}
+
+// Using in a handler
+async fn handler(
+    State(auth_service): State<Arc<AuthService>>,
+    State(user_service): State<Arc<UserService>>,
+) -> Result<impl Response, AppError> {
+    // Use services...
+}
+```
+
+## Testing Approach
+### Unit Tests
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_create_test_state() {
+        let settings = Arc::new(Settings::default());
+        let db_pool = setup_test_db().await;
+        let state = create_test_state(db_pool, settings).await;
+        
+        assert!(state.auth_service.is_some());
+        // ... other assertions
+    }
+}
+```
+
+### Integration Tests
+- Test state is created with mock implementations
+- Redis and database connections can be skipped in test environment
+- Mock email service is used by default in tests
+
+## Dependencies
+### Internal Dependencies
+- `settings.rs`: Configuration management
+- `services/*`: Individual service implementations
+- `models/*`: Data models
+- `utils/*`: Utility functions and helpers
+
+### External Dependencies
+- `sqlx`: Database connection pool and queries
+- `redis`: Redis client for caching and sessions
+- `axum`: Web framework and state extraction
+- `tokio`: Async runtime
+
+## Notes & Best Practices
+### Performance Considerations
+- Services are wrapped in `Arc` to minimize cloning cost
+- Database pool is shared to manage connection limits
+- Redis client uses connection pooling
+
+### Security Considerations
+- Sensitive settings use `Secret<String>` type
+- Services implement proper authentication checks
+- Rate limiting and account locking are configurable
+
+### Rust Idioms
+- Use of `Arc` for thread-safe sharing
+- Implementation of `FromRef` for ergonomic extraction
+- Builder pattern for service initialization
+
+### Maintenance Notes
+- Add new services to both `AppState` and implement `FromRef`
+- Consider impact on test state when adding services
+- Document service dependencies and initialization order
+
+## Related Components
+- `Settings`: Configuration management
+- `Services`: Individual service implementations
+- `Middleware`: Authentication and request processing
+- `Routes`: HTTP endpoint handlers

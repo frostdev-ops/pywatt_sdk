@@ -1,0 +1,114 @@
+---
+trigger: manual
+description:
+globs:
+---
+# FinanceService Client Requests
+
+## Purpose
+Document the request payload structures used for creating and updating `Client` entities within the FinanceService module.
+
+---
+
+## CreateClientRequest
+
+```rust
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateClientRequest {
+    /// Name of the new client
+    pub name: String,
+    /// User ID of the client owner
+    pub owner_id: Uuid,
+    /// Created at timestamp
+    pub created_at: DateTime<Utc>,
+}
+```
+
+Fields:
+- `name` (`String`): The display name for the new client.
+- `owner_id` (`Uuid`): The UUID of the user who is designated as the owner of this client.
+- `created_at` (`DateTime<Utc>`): A timestamp (in UTC) indicating when the client was created.
+
+---
+
+## UpdateClientRequest
+
+```rust
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateClientRequest {
+    /// Unique identifier for the client
+    pub id: Uuid,
+    /// Name of the client
+    pub name: Option<String>,
+    /// Email of the client
+    pub email: Option<String>,
+    /// Phone number of the client
+    pub phone: Option<String>,
+    /// Address of the client
+    pub address: Option<String>,
+    /// City of the client
+    pub city: Option<String>,
+    /// State of the client
+    pub state: Option<String>,
+    /// Zip code of the client
+    pub zip: Option<String>,
+    /// Country of the client
+    pub country: Option<String>,
+    /// Notes about the client
+    pub notes: Option<String>,
+    /// Created at timestamp
+    pub created_at: Option<DateTime<Utc>>,
+    /// Updated at timestamp
+    pub updated_at: Option<DateTime<Utc>>,
+    /// Status of the client
+    pub status: Option<String>,
+    /// Type of the client
+    pub client_type: Option<String>,
+    /// Industry of the client
+    pub industry: Option<String>,
+    /// Website of the client
+    pub website: Option<String>,
+    /// Tax ID of the client
+    pub tax_id: Option<String>,
+    /// Currency of the client
+    pub currency: Option<String>,
+    /// Payment terms of the client
+    pub payment_terms: Option<String>,
+    /// Payment method of the client
+    pub payment_method: Option<String>,
+    /// User ID of the client owner
+    pub owner_id: Option<Uuid>,
+    /// User ID of the client
+    pub user_id: Option<Uuid>,
+}
+```
+
+Fields:
+- `id` (`Uuid`): The required, unique identifier of the client record.
+- All other fields optional (`Option<…>`), allowing partial updates on any subset of the client's mutable properties.
+
+---
+
+## Usage Examples
+
+### Creating a Client
+```rust
+let new_req = CreateClientRequest {
+    name: "Acme Corp".to_string(),
+    owner_id: Uuid::new_v4(),
+    created_at: Utc::now(),
+};
+let created = client_service.create_client(new_req).await?;
+```  
+
+### Updating a Client
+```rust
+let update_req = UpdateClientRequest {
+    id: existing_client.id,
+    email: Some("contact@acme.com".to_string()),
+    phone: None,
+    // other fields default to None
+    ..Default::default()
+};
+let updated = client_service.update_client(update_req).await?;
+```

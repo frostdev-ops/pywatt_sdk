@@ -1,0 +1,75 @@
+---
+trigger: model_decision
+description: Helpful creating new rules.
+globs: 
+---
+# Component: [Component Name]
+
+## Component Type
+[API Controller/Service/Model/Middleware/Utility]
+
+## File Path
+`src/[path/to/component]`
+
+## Purpose
+[Clear description of this component's purpose and responsibilities in the system]
+
+## Key Types & Structures
+- **[Type/Struct Name]**: [Description of purpose and key attributes]
+- **[Type/Struct Name]**: [Description of purpose and key attributes]
+- **[Enum Name]**: [Description of what this enum represents and its variants]
+
+## Interfaces/Traits
+- **[Trait Name]**: [Description of purpose and implemented behavior]
+- **[Trait Name]**: [Description of purpose and implemented behavior]
+
+## Public API
+- **[Function/Method Name]**: [Description including parameters, return type, and purpose]
+- **[Function/Method Name]**: [Description including parameters, return type, and purpose]
+
+## Design Patterns
+- **[Pattern Name]**: [How and why this pattern is used in this component]
+- **[Pattern Name]**: [How and why this pattern is used in this component]
+
+## Error Handling
+- [Describe the error types returned by this component]
+- [Explain error propagation patterns]
+- [Mention any error transformation/mapping logic]
+
+## Usage Examples
+```rust
+// Example of how this component is typically used
+let example = Component::new();
+example.do_something();
+```
+
+## Testing Approach
+- **Unit Tests**: [Describe unit testing approach for this component]
+- **Integration Tests**: [Describe integration testing approach if applicable]
+- **Test Fixtures**: [Describe any test fixtures or mocks used]
+## Dependencies
+- **Internal**: [List of internal dependencies]
+- **External**: [List of external crate dependencies]
+
+## Rust-Specific Features
+- **Async/Await**: [How async patterns are used]
+- **Error Propagation**: [How the ? operator is used]
+- **Smart Pointers**: [Use of Arc, Box, etc.]
+- **Lifetimes**: [Description of lifetime annotations if complex]
+
+## Performance Considerations
+- [Any performance optimizations or considerations]
+- [Potential bottlenecks]
+- [Resource management strategies]
+
+## Security Considerations
+- [Authentication requirements]
+- [Authorization checks]
+- [Input validation]
+- [Data protection]
+
+## Notes & Best Practices
+- [Gotchas or non-obvious behavior]
+- [Recommendations for changes/extensions]
+- [Areas that could use improvement]
+- [Alternative implementations considered]

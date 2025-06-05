@@ -1,0 +1,75 @@
+---
+trigger: always_on
+description: 
+globs: 
+---
+# Component: Endpoint Discovery v2
+
+## Component Type
+SDK Feature / Cursor Rule
+
+## File Path
+`.cursor/rules/endpoint_discovery_v2.mdc`
+
+## Purpose
+The enhanced endpoint discovery system inspects Axum routers to automatically detect and announce HTTP endpoints to the PyWatt orchestrator. This v2 implementation improves the previous version by handling nested routers, path parameters, wildcards, and normalizing method names.
+
+## Key Features
+1. **Nested Router Support**: Correctly traverses and combines paths from routers nested via `.nest()`
+2. **Path Parameter Detection**: Properly announces endpoints with path parameters (e.g., `/users/:id`)
+3. **Wildcard Support**: Detects wildcard routes (e.g., `/*rest`) and announces them with a `*` suffix
+4. **Method Normalization**: Ensures method names are uppercase and de-duplicated
+
+## Usage Examples
+```rust
+// Create a router with nested routes and parameters
+let users_api = Router::new()
+    .route("/:id", axum::routing::get(get_user))
+    .route("/:id/posts", axum::routing::get(get_user_posts));
+
+let app = Router::new()
+    .route("/health", axum::routing::get(health_check))
+    .nest("/api/users", users_api);
+
+// Discover and announce endpoints automatically
+let endpoints = pywatt_sdk::announce_from_router(&app);
+
+// Resulting endpoints will include:
+// - "/health" with methods ["GET"]
+// - "/api/users/:id" with methods ["GET"]
+// - "/api/users/:id/posts" with methods ["GET"]
+```
+
+## Implementation Details
+1. **Router Inspection**: Uses Axum's internal router structures to extract paths and methods
+2. **Method Handling**: De-duplicates and normalizes HTTP methods to uppercase standard names
+3. **Recursive Traversal**: Recursively processes nested routers, combining path segments
+4. **Wildcard Routes**: Detects wildcard routes and includes common HTTP methods
+
+## Limitations
+1. The discovery mechanism depends on Axum's internal APIs, which may change between versions
+2. Cannot automatically determine authentication requirements (auth is set to `None`)
+3. Some complex routing patterns or custom matchers may not be fully captured
+
+## Configuration
+The feature is enabled via the `discover_endpoints` feature flag in `pywatt_sdk`:
+
+```toml
+[dependencies]
+pywatt_sdk = { version = "0.1.0", features = ["discover_endpoints"] }
+```
+
+## Best Practices
+1. Use consistent routing patterns across your modules
+2. Review the announced endpoints to ensure they match your expected routes
+3. For routes requiring authentication, manually add the auth requirement after discovery
+
+## Testing
+- Unit test with various router configurations
+- Integration test to verify the orchestrator correctly receives the announced endpoints
+- Add assertions to verify path parameters and nested routes are correctly processed
+
+## Related Components
+- `pywatt::module` macro uses this feature to automatically announce endpoints
+- `pywatt_sdk_test` can inspect the announced endpoints in tests
+- RouterExt adds Prometheus metrics endpoints that are also discovered

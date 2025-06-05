@@ -1,0 +1,69 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# PyWatt Module Utilities (pywatt_module_utils)
+
+<context>
+This rule documents the `pywatt_module_utils` crate, which provides shared utilities for module development, including orchestrator handshake, IPC announcements, safe logging, and secret management.
+</context>
+
+<rules>
+1. **Initialization**: Modules should call `pywatt_module_utils::init_module()` at startup to configure logging with redaction support.
+2. **Handshake**: Modules must call `read_init::<OrchestratorInit>().await` to read the orchestrator's initialization blob, which includes `orchestrator_api`, `module_id`, `env`, and `listen` address.
+3. **Announcement**: After the HTTP server is ready, modules must send an `AnnounceBlob` to the orchestrator using `send_announce(&announcement)` so that the orchestrator can record the listening address and endpoints.
+4. **Secret Client**: Use `get_module_secret_client(api, id).await` to obtain a reusable `SecretClient` instance.
+5. **Secret Retrieval**: Call `get_module_secret(&client, key).await` to fetch and register secrets for redaction.
+6. **Rotation Subscription**: Use `subscribe_secret_rotations(client, keys, callback).await` to handle secret rotations and update in-memory state.
+</rules>
+
+<patterns>
+```rust
+use pywatt_module_utils::*;
+use orchestrator::ipc::{OrchestratorInit, AnnounceBlob};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 1. Init logging & redaction
+    init_module();
+
+    // 2. Read handshake
+    let init: OrchestratorInit = read_init().await?;
+
+    // 3. Connect to secret service
+    let client = get_module_secret_client(&init.orchestrator_api, &init.module_id).await?;
+
+    // 4. Optionally load initial secrets
+    let db_url = get_module_secret(&client, "DATABASE_URL").await?;
+    
+    // 5. Start HTTP server...
+    let listen = format!("127.0.0.1:{}", port);
+    // send announce
+    let announce = AnnounceBlob { listen, endpoints };
+    send_announce(&announce)?;
+
+    // 6. Subscribe rotations
+    subscribe_secret_rotations(client.clone(), vec!["DATABASE_URL".into()], |k, v| {
+        // update shared state
+    }).await;
+
+    Ok(())
+}
+```
+</patterns>
+
+<examples>
+See `reference_module.rs` updated to use `pywatt_module_utils` instead of ad-hoc utilities.
+</examples>
+
+<consequences>
+- Modules not using these utilities may fail IPC parsing or leak secrets via logs.
+- Handshake mismatches will prevent module startup.
+</consequences>
+
+<related>
+- `module_ipc_protocol` for orchestrator-side IPC schema
+- `module_stdio_usage` for stdout/stderr conventions
+- `module_secret_management` for secret rotation best practices
+</related>

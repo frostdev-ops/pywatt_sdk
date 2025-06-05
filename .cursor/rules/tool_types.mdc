@@ -1,0 +1,141 @@
+---
+description: This rule documents the Tool types in the PyWatt-Rust project and how to correctly handle them in different modules.
+globs: 
+alwaysApply: false
+---
+# Tool Types
+
+<context>
+This rule documents the Tool types in the PyWatt-Rust project and how to correctly handle them in different modules.
+</context>
+
+<rules>
+
+## Tool Type Hierarchy
+- There are two separate Tool types in the codebase:
+  - `crate::mcp::types::Tool` - Used for MCP (Managed Conversation Protocol) functionality
+  - `crate::llm::types::Tool` - Used for LLM (Language Learning Model) integration
+
+## Type Conversion
+- Do not directly use `.into()` or `.from()` between these types without implementing the conversion
+- Implement explicit conversion functions when needed
+- Always be explicit about which Tool type you're using in function signatures
+
+## Common Patterns
+- When working with tool definitions that need to be passed to LLM services:
+  - Convert `mcp::types::Tool` to `llm::types::Tool` explicitly
+  - Use iteration with mapped conversion rather than collection-wide conversion
+  - Keep type annotations clear to avoid ambiguity
+
+## Type Safety
+- Use type aliases in context where appropriate to reduce confusion
+- Add clear comments when working with both Tool types in the same function
+- Avoid variable names that don't distinguish between the tool types
+
+</rules>
+
+<patterns>
+
+## Converting Between Tool Types
+```rust
+// Converting from MCP Tool to LLM Tool
+fn convert_mcp_to_llm_tool(mcp_tool: &mcp::types::Tool) -> llm::types::Tool {
+    llm::types::Tool {
+        name: mcp_tool.name.clone(),
+        description: mcp_tool.description.clone(),
+        parameters: mcp_tool.parameters.clone(),
+        // Map other fields as needed
+    }
+}
+
+// Using the conversion in a collection
+let llm_tools: Vec<llm::types::Tool> = mcp_tools
+    .iter()
+    .map(convert_mcp_to_llm_tool)
+    .collect();
+```
+
+## Specifying Tool Types Explicitly
+```rust
+// Bad: Unclear which Tool type is being used
+fn process_tools(tools: Vec<Tool>) { ... }
+
+// Good: Clear which Tool type is being used
+fn process_tools(tools: Vec<llm::types::Tool>) { ... }
+
+// Better: Using type alias for clarity in context
+type LlmTool = llm::types::Tool;
+type McpTool = mcp::types::Tool;
+
+fn process_llm_tools(tools: Vec<LlmTool>) { ... }
+fn process_mcp_tools(tools: Vec<McpTool>) { ... }
+```
+
+</patterns>
+
+<examples>
+
+## Proper Tool Type Handling in Chat Orchestration
+```rust
+// Correct way to handle tool definitions in chat orchestration
+pub async fn process_with_tools(&self, user_query: &str, tools: Vec<mcp::types::Tool>) -> AppResult<String> {
+    // Convert MCP tools to LLM tools
+    let llm_tools: Vec<llm::types::Tool> = tools
+        .iter()
+        .map(|tool| llm::types::Tool {
+            name: tool.name.clone(),
+            description: tool.description.clone(),
+            parameters: tool.parameters.clone(),
+        })
+        .collect();
+    
+    // Use the converted tools with LLM service
+    let request = GenerateContentRequest {
+        // Other fields...
+        tools: Some(llm_tools),
+    };
+    
+    // Continue processing...
+    Ok(response)
+}
+```
+
+## Type Annotation for Clarity
+```rust
+// Clear type annotations when working with both tool types
+pub async fn execute_tool_call(
+    &self, 
+    call: &llm::types::FunctionCall,
+    available_tools: &[mcp::types::Tool]
+) -> AppResult<String> {
+    // Find the matching MCP tool by name
+    let mcp_tool = available_tools
+        .iter()
+        .find(|tool| tool.name == call.name)
+        .ok_or_else(|| AppError::NotFound(format!("Tool {} not found", call.name)))?;
+    
+    // Process the tool execution with explicit types
+    // ...
+}
+```
+
+</examples>
+
+<troubleshooting>
+
+## Common Errors
+- "the trait bound `llm::types::Tool: std::convert::From<mcp::types::Tool>` is not satisfied"
+  - Solution: Implement explicit conversion or map between types instead of using `.into()`
+
+- "expected `llm::types::Tool`, found `mcp::types::Tool`"
+  - Solution: Check your function signatures and collection types, convert explicitly between types
+
+- "mismatched types in Some(tool_definitions.clone())"
+  - Solution: Convert the tool definitions before wrapping in `Some()`
+
+## Quick Fixes
+- Replace `Some(tool_definitions.clone())` with `Some(tool_definitions.iter().map(|t| convert_to_llm_tool(t)).collect())`
+- Always use fully qualified type names (`llm::types::Tool` instead of just `Tool`)
+- Create helper conversion functions in a utility module
+
+</troubleshooting>

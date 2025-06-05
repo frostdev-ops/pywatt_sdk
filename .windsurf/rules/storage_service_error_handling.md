@@ -1,0 +1,53 @@
+---
+trigger: model_decision
+description: multipart extraction and general Axum errors are converted into `AppError` for consistent error handling in the storage service API handlers.
+globs: 
+---
+# Component: Error Handling for Storage Service Handlers
+
+## Component Type
+Error Handling / Utility
+
+## File Path
+`src/modules/storage_service/src/handlers.rs`
+
+## Purpose
+Document how errors from multipart extraction and general Axum errors are converted into `AppError` for consistent error handling in the storage service API handlers.
+
+## Key Types & Structures
+- **AppError**: Application error enum encompassing `BadRequest`, `NotFound`, `Forbidden`, `Internal`, `Database`, and `Json` error cases.
+- **MultipartError → AppError**: Converts multipart parsing errors into `AppError::Internal`.
+- **AxumError → AppError**: Converts general Axum framework errors into `AppError::Internal`.
+
+## Interfaces/Traits
+- `impl From<MultipartError> for AppError`
+- `impl From<AxumError> for AppError`
+
+## Public API
+- `fn from(err: MultipartError) -> AppError`  
+  Maps multipart form extraction errors to internal server errors.
+- `fn from(err: AxumError) -> AppError`  
+  Maps all other Axum errors to internal server errors.
+
+## Design Patterns
+- **Error Conversion**: Use `From<T> for AppError` to allow `?` operator on Axum and multipart errors in handler methods.
+- **Centralized Error Mapping**: Ensures all handler errors are surfaced via a unified `AppError` type and mapped to appropriate HTTP status codes.
+
+## Error Handling
+- Both conversions wrap the original error into `AppError::Internal`, ensuring internal details are not leaked to clients.
+- `AppError::Internal` is converted to `500 Internal Server Error`.
+
+## Usage Examples
+```rust
+// In a handler:
+let field = multipart.next_field().await?; // `?` invokes From<MultipartError> for AppError
+let response = Json(...);
+```
+
+## Dependencies
+- **External**: `axum`, `tokio`, `thiserror`
+- **Internal**: `crate::handlers::AppError`
+
+## Rust-Specific Features
+- Use of the `?` operator with custom `From` implementations.
+- `thiserror` for error enum derivation.

@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Module IPC Standard (v1.0)
+
+## Component Type
+Cursor Rule / Project Convention
+
+## Purpose
+Defines the canonical JSON-line IPC protocol every PyWatt module must implement to communicate with the orchestrator.  Replaces ad-hoc handshake structs found in earlier modules.
+
+## Key Requirements
+1. **Init → Announce** handshake using `ipc_types::{Init, Announce}`.
+2. **Runtime ops** handled via `ipc_types::{OrchestratorToModule, ModuleToOrchestrator}` – currently `Secret`, `Rotated`, `Shutdown`, `RotationAck`, `GetSecret`.
+3. **Stdout = IPC only**, **stderr = logs** (see `module_stdio_usage`).
+4. Module binds exactly the address provided in `Init.listen` and echoes it back in `Announce.listen`.
+5. Modules MUST spawn a background task listening on stdin to:
+   * Update secret cache on `Secret`/`Rotated`.
+   * Send `RotationAck` once per `rotation_id`.
+   * Exit gracefully on `Shutdown`.
+6. All endpoints in `Announce.endpoints` require explicit `auth` (`None` vs `"jwt"`).
+
+## Reference Code
+See `docs/ipc_protocol.md` §5 for the canonical snippet.
+
+## Migration Timeline
+See `MODULE_IPC_STANDARDIZATION_PLAN.md`.

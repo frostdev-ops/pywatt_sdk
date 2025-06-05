@@ -1,0 +1,348 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Module IPC Protocol
+
+<context>
+This rule defines the standard Inter-Process Communication (IPC) protocol that modules must implement to communicate with the PyWatt Orchestrator. Following these patterns ensures reliable module discovery, lifecycle management, and service coordination.
+</context>
+
+<rules>
+
+1. **Startup Handshake**:
+   * Modules MUST read the initialization data from stdin immediately on startup.
+   * The data is a single line of JSON formatted as `OrchestratorInit`.
+   * Modules MUST respond on stdout with a `ModuleAnnounce` message.
+   * Failure to complete this handshake prevents module registration.
+
+2. **JSON Line Format**:
+   * All IPC messages MUST be single-line JSON objects.
+   * Each message must be terminated with a newline character.
+   * All messages must be valid, well-formed JSON.
+   * Messages MUST conform to the schema defined in `orchestrator::codec`.
+
+3. **Message Versioning**:
+   * Include appropriate version information in messages where schemas support it.
+   * Handle unknown message fields gracefully for forward compatibility.
+   * Be prepared for new message types in future versions.
+
+4. **Error Handling**:
+   * Handle stdin EOF as a signal to terminate gracefully.
+   * Log IPC errors to stderr, not stdout.
+   * If stdin/stdout communication fails, exit with non-zero status.
+
+5. **Secret Management**:
+   * Use the `secret_client` crate for secret retrieval rather than direct IPC calls.
+   * Cache secrets appropriately to minimize IPC overhead.
+   * Handle secret rotation notifications properly.
+
+</rules>
+
+<patterns>
+
+## Startup Handshake
+```rust
+async fn startup_handshake() -> Result<OrchestratorInit, Error> {
+    // Use async BufReader for stdin
+    let stdin = tokio::io::stdin();
+    let mut reader = tokio::io::BufReader::new(stdin);
+    let mut line = String::new();
+    
+    // Read initialization data
+    match reader.read_line(&mut line).await {
+        Ok(0) => {
+            error!("Stdin closed unexpectedly during handshake");
+            Err(Error::HandshakeFailed("stdin closed".to_string()))
+        }
+        Ok(_) => {
+            match serde_json::from_str::<OrchestratorInit>(&line) {
+                Ok(init_data) => {
+                    info!(
+                        module_id = %init_data.module_id,
+                        api = %init_data.orchestrator_api,
+                        "Received initialization data"
+                    );
+                    Ok(init_data)
+                }
+                Err(e) => {
+                    error!(
+                        error = %e,
+                        raw_line = %line.trim(),
+                        "Failed to parse initialization data"
+                    );
+                    Err(Error::HandshakeFailed(format!("JSON parse error: {}", e)))
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to read from stdin: {}", e);
+            Err(Error::HandshakeFailed(format!("stdin read error: {}", e)))
+        }
+    }
+}
+```
+
+## Module Announcement
+```rust
+use secret_client::safe_log;
+
+fn announce_module(port: u16) -> Result<(), Error> {
+    let announcement = ModuleAnnounce {
+        listen: format!("127.0.0.1:{}", port),
+        endpoints: vec![
+            EndpointInfo {
+                path: "/health".to_string(),
+                methods: vec!["GET".to_string()],
+                auth: None,
+            },
+            // Additional endpoints...
+        ],
+    };
+    
+    match serde_json::to_string(&announcement) {
+        Ok(json) => {
+            // Use secret_client's safe_log to ensure it goes to stdout
+            safe_log!(info, "{}", json);
+            Ok(())
+        }
+        Err(e) => {
+            error!("Failed to serialize module announcement: {}", e);
+            Err(Error::AnnouncementFailed(e.to_string()))
+        }
+    }
+}
+```
+
+## Runtime IPC Message Processing
+```rust
+// Define IPC message schema
+#[derive(Deserialize, Debug)]
+#[serde(tag = "op")]
+enum IpcCommand {
+    #[serde(rename = "shutdown")]
+    Shutdown,
+    #[serde(rename = "health_check")]
+    HealthCheck,
+    // Other commands...
+}
+
+async fn process_ipc_commands() {
+    let stdin = tokio::io::stdin();
+    let mut reader = tokio::io::BufReader::new(stdin);
+    let mut line = String::new();
+    
+    loop {
+        line.clear();
+        match reader.read_line(&mut line).await {
+            Ok(0) => {
+                // EOF - orchestrator closed the pipe
+                info!("Stdin closed, exiting IPC loop");
+                break;
+            }
+            Ok(_) => {
+                match serde_json::from_str::<IpcCommand>(&line) {
+                    Ok(command) => {
+                        match command {
+                            IpcCommand::Shutdown => {
+                                info!("Received shutdown command");
+                                // Initiate graceful shutdown
+                                break;
+                            }
+                            IpcCommand::HealthCheck => {
+                                // Reply with health status
+                                let response = json!({
+                                    "op": "health_response",
+                                    "status": "healthy"
+                                });
+                                safe_log!(info, "{}", serde_json::to_string(&response).unwrap());
+                            }
+                            // Handle other commands...
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            error = %e,
+                            raw_line = %line.trim(),
+                            "Failed to parse IPC command"
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Error reading from stdin: {}", e);
+                break;
+            }
+        }
+    }
+    
+    // Exit gracefully
+    info!("IPC command loop terminated");
+}
+```
+
+</patterns>
+
+<examples>
+
+## Complete Module IPC Flow
+```rust
+use secret_client::{init_logging, safe_log};
+use serde::{Deserialize, Serialize};
+use tokio::io::{self, AsyncBufReadExt, BufReader};
+use tracing::{error, info};
+
+// Define schemas
+#[derive(Deserialize, Debug)]
+struct OrchestratorInit {
+    orchestrator_api: String,
+    module_id: String,
+    listen_port: u16,
+}
+
+#[derive(Serialize, Debug)]
+struct ModuleAnnounce {
+    listen: String,
+    endpoints: Vec<EndpointInfo>,
+}
+
+#[derive(Serialize, Debug)]
+struct EndpointInfo {
+    path: String,
+    methods: Vec<String>,
+    auth: Option<String>,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize logging
+    init_logging();
+    
+    // 1. Read handshake from stdin
+    let init_data = match startup_handshake().await {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Handshake failed: {}", e);
+            std::process::exit(1);
+        }
+    };
+    
+    // 2. Setup HTTP server with the provided port
+    let server_handle = tokio::spawn(async move {
+        setup_http_server(init_data.listen_port).await
+    });
+    
+    // 3. Once server is ready, announce to orchestrator
+    let announcement = ModuleAnnounce {
+        listen: format!("127.0.0.1:{}", init_data.listen_port),
+        endpoints: vec![
+            EndpointInfo {
+                path: "/health".to_string(),
+                methods: vec!["GET".to_string()],
+                auth: None,
+            },
+            // Additional endpoints...
+        ],
+    };
+    
+    if let Ok(json) = serde_json::to_string(&announcement) {
+        safe_log!(info, "{}", json);
+    } else {
+        error!("Failed to serialize announcement");
+        std::process::exit(1);
+    }
+    
+    // 4. Process ongoing IPC commands from orchestrator
+    tokio::select! {
+        _ = process_ipc_commands() => {
+            info!("IPC command loop terminated");
+        }
+        _ = server_handle => {
+            error!("HTTP server terminated unexpectedly");
+        }
+    }
+    
+    // Exit gracefully
+    info!("Module shutting down");
+    Ok(())
+}
+
+async fn startup_handshake() -> Result<OrchestratorInit, Box<dyn std::error::Error>> {
+    let stdin = io::stdin();
+    let mut reader = BufReader::new(stdin);
+    let mut line = String::new();
+    
+    match reader.read_line(&mut line).await {
+        Ok(0) => {
+            error!("Stdin closed unexpectedly during handshake");
+            Err("stdin closed".into())
+        }
+        Ok(_) => {
+            match serde_json::from_str::<OrchestratorInit>(&line) {
+                Ok(init_data) => {
+                    info!(
+                        module_id = %init_data.module_id,
+                        api = %init_data.orchestrator_api,
+                        port = %init_data.listen_port,
+                        "Received initialization data"
+                    );
+                    Ok(init_data)
+                }
+                Err(e) => {
+                    error!(
+                        error = %e,
+                        raw_line = %line.trim(),
+                        "Failed to parse initialization data"
+                    );
+                    Err(e.into())
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to read from stdin: {}", e);
+            Err(e.into())
+        }
+    }
+}
+
+// Other function implementations...
+```
+
+## Incorrect IPC Usage (What Not To Do)
+```rust
+// INCORRECT: Writing log messages to stdout
+println!("Module starting up..."); // BAD: Regular logs should go to stderr
+
+// INCORRECT: Not handling EOF properly
+if stdin.read_line(&mut line).await.is_err() {
+    panic!("Failed to read from stdin"); // BAD: Should exit gracefully
+}
+
+// INCORRECT: Multi-line JSON
+println!(
+    "{{
+        \"listen\": \"127.0.0.1:8080\",
+        \"endpoints\": []
+    }}"
+); // BAD: Should be a single line
+
+// INCORRECT: Manual JSON formatting (error-prone)
+println!("{{ \"listen\": \"{}\", \"endpoints\": [] }}", addr); // BAD: Use proper serialization
+```
+
+</examples>
+
+<consequences>
+- Failing to implement the proper IPC protocol will result in module registration failure
+- Writing non-IPC content to stdout will break the communication channel
+- Not handling EOF and errors gracefully can lead to orphaned processes
+- Improperly serializing messages can cause parsing errors in the orchestrator
+</consequences>
+
+<related>
+- `module_stdio_usage`: Defines the standard usage of stdin/stdout for IPC
+- `secret_client`: Provides helpers for secure IPC and secret management
+- `orchestrator::codec`: Defines the IPC message schema and serialization
+- `orchestrator::supervisor`: Implements the orchestrator side of the IPC protocol
+</related> 

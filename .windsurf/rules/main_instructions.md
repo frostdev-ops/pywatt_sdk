@@ -1,0 +1,113 @@
+---
+trigger: always_on
+description: 
+globs: 
+---
+# Instructions for AI-Assisted PyWatt-Rust Documentation
+
+This document provides guidance on using the provided templates to effectively explore and document the PyWatt-Rust codebase. Follow these steps to create comprehensive and useful documentation.
+
+## Getting Started
+
+1. **Familiarize Yourself with the Project**:
+   - Review the `Cargo.toml` file to understand dependencies
+   - Examine the main project structure and entry points
+   - Read through any existing README files and documentation
+
+2. **Understand the Architecture**:
+   - Start with `src/main.rs` to understand the application initialization
+   - Examine `src/state.rs` to understand service dependencies
+   - Review the routes directory to understand API endpoints
+   - Analyze the services directory to understand business logic organization
+
+## Documentation Approach
+
+### Step 1: Identify Key Components
+
+For each major component in the codebase:
+
+1. Identify its purpose and responsibility
+2. Map its dependencies and relationships
+3. Understand its public API and usage patterns
+4. Analyze its error handling and testing approach
+
+Components to document include:
+- Core services
+- Models and data structures
+- Route handlers
+- Middleware
+- Utility modules
+
+### Step 2: Create Rule Files
+For each component, create a rule file using the template provided in `rule_template.md`:
+
+1. Fill in all applicable sections
+2. Provide code examples where helpful
+3. Document design patterns and architectural decisions
+4. Note any Rust-specific features or optimizations
+
+### Step 3: Document Cross-Cutting Concerns
+
+Create dedicated rule files for cross-cutting concerns:
+- Authentication and authorization
+- Error handling
+- State management
+- Database interactions
+- WebSocket communication
+
+### Step 4: Create Index Files
+
+Create index files that provide navigation and relationships between components:
+- Service dependency graph
+- Data flow diagrams
+- API endpoint listing
+- Core abstractions overview
+
+## Documentation Guidelines
+
+1. **Be Precise**: Use accurate terminology and clear descriptions
+2. **Be Comprehensive**: Cover all aspects of the component
+3. **Be Practical**: Include usage examples and common patterns
+4. **Be Insightful**: Document not just what code does, but why it's designed that way
+
+## Example Workflow
+
+Here's a suggested workflow for documenting a component:
+
+1. Read the component's source code thoroughly
+2. Identify where and how it's used in the codebase
+3. Look at tests to understand expected behavior
+4. Check for comments and existing documentation
+5. Fill in the rule template based on your findings
+6. Include code examples that demonstrate usage
+7. Note any non-obvious behavior or gotchas
+
+## Priority Areas
+
+Focus on these areas first, as they provide the foundation for understanding the codebase:
+
+1. State management (`AppState` and service initialization)
+2. Authentication flow (JWT handling, session management)
+3. Request processing pipeline (middleware, extractors)
+4. Database interaction patterns (SQLx usage, transactions)
+5. WebSocket handling (connection management, message processing)
+
+## Documenting Rust-Specific Elements
+
+Pay special attention to documenting these Rust-specific elements:
+
+1. **Lifetimes**: Document complex lifetime annotations and their purpose
+2. **Error Handling**: Note use of the `?` operator and custom error types
+3. **Async Patterns**: Document async/await usage and task management
+4. **Type System**: Note use of generics, trait bounds, and type safety features
+5. **Smart Pointers**: Document use of `Arc`, `Box`, etc.
+
+## Final Review
+
+After creating all rule files, perform a review to ensure:
+
+1. All major components are documented
+2. Cross-component relationships are clear
+3. Documentation is accurate and up-to-date
+4. Design patterns and architectural decisions are explained
+5. Common development tasks are documented with examples

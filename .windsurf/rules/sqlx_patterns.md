@@ -1,0 +1,218 @@
+---
+trigger: model_decision
+description: This rule documents common patterns and best practices for using SQLX in the PyWatt-Rust project.
+globs: 
+---
+# SQLX Patterns
+
+<context>
+This rule documents common patterns and best practices for using SQLX in the PyWatt-Rust project.
+</context>
+
+<rules>
+
+## Type Implementations
+- When implementing `sqlx::Type`, `sqlx::Decode`, and `sqlx::Encode` traits, follow the proper signature requirements
+- For custom enum types, ensure the SQL type matches the database schema
+- Implement all required methods with the correct return types
+- For `encode_by_ref`, always return `Result<IsNull, Error>` rather than just `IsNull`
+
+## Query Macros
+- Prefer `query!` and `query_as!` over raw query execution for compile-time checking
+- Use the `sqlx::FromRow` derive macro for structs that match database tables
+- For type casting in queries, use the proper syntax: `"field as \"field: Type\""`
+- Handle null values with Option types appropriately
+
+## Transactions
+- Begin transactions with `pool.begin().await?`
+- When executing queries within a transaction, use the `&mut *tx` pattern
+- Always explicitly commit or roll back transactions with `tx.commit()` or `tx.rollback()`
+- Use transactions whenever multiple related database operations need to be atomic
+
+## Error Handling
+- Use the `?` operator for propagating database errors
+- For custom error handling, convert sqlx errors with `map_err` or implement `From<sqlx::Error>`
+- Document potential errors in function comments
+- Consider retries for transient database errors like deadlocks
+
+</rules>
+
+<patterns>
+
+## Proper sqlx::Encode Implementation
+```rust
+impl sqlx::Encode<'_, sqlx::Postgres> for CustomType {
+    fn encode_by_ref(&self, buf: &mut sqlx::postgres::PgArgumentBuffer) -> Result<sqlx::encode::IsNull, Box<dyn std::error::Error + Send + Sync>> {
+        // Encode the value
+        let s = self.to_string();
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(&s.as_str(), buf)
+    }
+}
+```
+
+## Transaction Pattern
+```rust
+// Start a transaction
+let mut tx = pool.begin().await?;
+
+// Execute queries within the transaction
+sqlx::query!("INSERT INTO items (id, name) VALUES ($1, $2)", id, name)
+    .execute(&mut *tx)
+    .await?;
+
+sqlx::query!("UPDATE counters SET value = value + 1 WHERE name = 'items'")
+    .execute(&mut *tx)
+    .await?;
+
+// Commit the transaction
+tx.commit().await?;
+```
+
+## Type-Safe Query Pattern
+```rust
+// Retrieving a typed result with query_as! macro
+let item = sqlx::query_as!(
+    Item,
+    r#"
+    SELECT id, name, category as "category: ItemCategory", created_at
+    FROM items
+    WHERE id = $1
+    "#,
+    id
+)
+.fetch_optional(&pool)
+.await?
+.ok_or_else(|| AppError::NotFound(format!("Item not found: {}", id)))?;
+```
+
+</patterns>
+
+<examples>
+
+## Custom Enum Type Implementation
+```rust
+// Custom enum type for database storage
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    Active,
+    Inactive,
+    Pending,
+}
+
+// Implement the SQLx traits
+impl sqlx::Type<sqlx::Postgres> for Status {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("VARCHAR")
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for Status {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let value = <String as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        match value.to_lowercase().as_str() {
+            "active" => Ok(Status::Active),
+            "inactive" => Ok(Status::Inactive),
+            "pending" => Ok(Status::Pending),
+            _ => Err(format!("Unknown Status: {}", value).into()),
+        }
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for Status {
+    fn encode_by_ref(&self, buf: &mut sqlx::postgres::PgArgumentBuffer) -> Result<sqlx::encode::IsNull, Box<dyn std::error::Error + Send + Sync>> {
+        let s = match self {
+            Status::Active => "active",
+            Status::Inactive => "inactive",
+            Status::Pending => "pending",
+        };
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(&s, buf)
+    }
+}
+```
+
+## Repository Pattern with SQLX
+```rust
+pub struct UserRepository {
+    pool: PgPool,
+}
+
+impl UserRepository {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+    
+    pub async fn find_by_id(&self, id: Uuid) -> AppResult<User> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            SELECT id, username, email, role as "role: UserRole", created_at, updated_at
+            FROM users
+            WHERE id = $1
+            "#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("User not found: {}", id)))?;
+        
+        Ok(user)
+    }
+    
+    pub async fn create(&self, user: &NewUser) -> AppResult<User> {
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+        
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            INSERT INTO users (id, username, email, password_hash, role, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, username, email, role as "role: UserRole", created_at, updated_at
+            "#,
+            id,
+            user.username,
+            user.email,
+            user.password_hash,
+            user.role as UserRole,
+            now,
+            now
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        
+        Ok(user)
+    }
+}
+```
+
+</examples>
+
+<troubleshooting>
+
+## Common Errors
+- "method `encode_by_ref` has an incompatible type for trait"
+  - Cause: Return type mismatch; you're returning `IsNull` instead of `Result<IsNull, Error>`
+  - Fix: Change return type to `Result<sqlx::encode::IsNull, Box<dyn std::error::Error + Send + Sync>>`
+
+- "column X not found in row"
+  - Cause: Mismatch between query result and struct field names
+  - Fix: Make sure struct field names match query column names, or use aliases
+
+- "expected struct X, found struct Y"
+  - Cause: The SQL type doesn't match the Rust type
+  - Fix: Use the correct field type or proper type casting in the query
+
+## Database Connection Issues
+- Check connection string format and credentials
+- Ensure database server is running and accessible
+- Verify network configuration allows connections
+- For pooled connections, check pool configuration (max connections, timeout)
+
+## Performance Considerations
+- Use the correct pool size based on expected workload
+- Consider using connection pooling for production
+- Use prepared statements for repeated queries
+- Add indexes for frequently queried columns
+
+</troubleshooting>

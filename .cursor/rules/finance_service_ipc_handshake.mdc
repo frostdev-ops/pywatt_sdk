@@ -1,0 +1,47 @@
+---
+description: Defines the standardized orchestrator initialization handshake for the Finance Service module using `pywatt_module_utils`, ensuring a single-line JSON handshake on startup and a proper announce back to the orchestrator.
+globs: 
+alwaysApply: false
+---
+# Component: Finance Service IPC Handshake
+
+## File Path
+`src/modules/finance_service/src/main.rs`
+
+## Purpose
+Defines the standardized orchestrator initialization handshake for the Finance Service module using `pywatt_module_utils`, ensuring a single-line JSON handshake on startup and a proper announce back to the orchestrator.
+
+## Requirements
+1. **Initialize logging & redaction**: Call `init_module()` before any other startup logic.
+2. **Read handshake**: Use `read_init::<OrchestratorInit>().await?` to read a single-line JSON handshake from `stdin`.
+3. **Environment injection**: Apply all key/value pairs from `init.env` via `std::env::set_var`.
+4. **Announce endpoints**: After HTTP server is ready, construct an `AnnounceBlob` and call `send_announce(&announcement)?` to emit a single-line JSON on `stdout`.
+5. **Error handling**: Propagate errors via `AppError` (or `Box<dyn Error>` in `main`) so reading or writing failures exit the process with non-zero status.
+
+## Usage Example
+```rust
+#[tokio::main]
+async fn main() -> Result<(), AppError> {
+    // 1. Init logging & stderr redaction
+    init_module();
+
+    // 2. Perform handshake
+    let init: OrchestratorInit = read_init().await?;
+
+    // 3. Apply environment variables
+    for (k, v) in &init.env {
+        std::env::set_var(k, v);
+    }
+
+    // 4. Build and start HTTP server...
+    let addr = init.listen.to_string();
+    // ... start server code ...
+
+    // 5. Announce back to orchestrator
+    let endpoints = vec![EndpointInfo { path: "/health".to_string(), methods: vec!["GET".to_string()], auth: None }];
+    let announcement = AnnounceBlob { listen: addr, endpoints };
+    send_announce(&announcement)?;
+
+    Ok(())
+}
+```

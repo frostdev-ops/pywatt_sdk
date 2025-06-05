@@ -1,0 +1,72 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Component: Module Error Pattern
+
+## Component Type
+Utility / Cursor Rule
+
+## File Path
+`.cursor/rules/module_error_pattern.mdc`
+
+## Purpose
+Defines a consistent, module-scoped error type `AppError` and mapping to HTTP and IPC responses for all PyWatt modules, ensuring uniform error handling and logging.
+
+## Key Sections
+1. **Error Enum Definition**
+   ```rust
+   #[derive(Debug, thiserror::Error)]
+   pub enum AppError {
+       #[error("Handshake failed: {0}")]
+       HandshakeFailed(String),
+       #[error("Announcement failed: {0}")]
+       AnnounceFailed(String),
+       #[error("Secret error: {0}")]
+       SecretError(#[from] SecretError),
+       #[error("Internal server error: {0}")]
+       Internal(#[from] anyhow::Error),
+       #[error("Bad request: {0}")]
+       BadRequest(String),
+       #[error("Not found: {0}")]
+       NotFound(String),
+       // ... add module-specific variants as needed
+   }
+   ```
+2. **HTTP & IPC Response Mapping**
+   ```rust
+   impl IntoResponse for AppError {
+       fn into_response(self) -> Response {
+           let status = match &self {
+               AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
+               AppError::NotFound(_) => StatusCode::NOT_FOUND,
+               _ => StatusCode::INTERNAL_SERVER_ERROR,
+           };
+           let body = Json(json!({ "error": self.to_string() }));
+           (status, body).into_response()
+       }
+   }
+   ```
+3. **Usage in Handlers**
+   ```rust
+   async fn handler(State(state): State<AppState>) -> Result<Json<Data>, AppError> {
+       let data = state.get_data().await.map_err(AppError::SecretError)?;
+       Ok(Json(data))
+   }
+   ```
+4. **Testing Error Responses**
+   ```rust
+   #[tokio::test]
+   async fn test_not_found_response() {
+       let err = AppError::NotFound("Item".into());
+       let resp = err.into_response();
+       assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+   }
+   ```
+
+## Notes & Best Practices
+- Group errors by domain (handshake, announce, secret, etc.).
+- Leverage `?` operator with automatic `From` conversions when possible.
+- Always return `Result<T, AppError>` in module entry points and handlers.
+
