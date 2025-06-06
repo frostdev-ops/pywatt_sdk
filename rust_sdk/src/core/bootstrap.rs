@@ -49,7 +49,7 @@ pub enum BootstrapError {
     #[error("required channel failed to initialize: {channel_type} - {error}")]
     RequiredChannelFailed { channel_type: String, error: String },
 
-    #[error("no channels available for communication")]
+    #[error("No channels available for communication")]
     NoChannelsAvailable,
 
     #[error("other error: {0}")]

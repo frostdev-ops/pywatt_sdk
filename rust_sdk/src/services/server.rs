@@ -273,17 +273,18 @@ pub async fn serve_module(app: axum::Router) -> Result<(), Error> {
 /// # Example
 /// ```rust,no_run
 /// use pywatt_sdk::prelude::*;
-/// use axum::{Router, routing::get};
-/// use secrecy::SecretString;
+/// use pywatt_sdk::core::error::Result;
+/// use axum::{Router, routing::get, Extension};
+/// use secrecy::{SecretString, ExposeSecret};
 ///
 /// #[derive(Clone)]
 /// struct MyState { db_url: String }
 ///
 /// #[tokio::main]
-/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// async fn main() -> Result<()> {
 ///     let secret_keys = vec!["DATABASE_URL".to_string()];
 ///     let endpoints = vec![
-///         EndpointAnnounce {
+///         AnnouncedEndpoint {
 ///             path: "/status".to_string(),
 ///             methods: vec!["GET".to_string()],
 ///             auth: None,
@@ -291,7 +292,7 @@ pub async fn serve_module(app: axum::Router) -> Result<(), Error> {
 ///     ];
 ///     
 ///     let state_builder = |init: &OrchestratorInit, secrets: Vec<SecretString>| MyState {
-///         db_url: secrets.get(0).map(|s| s.expose_secret().clone()).unwrap_or_default()
+///         db_url: secrets.get(0).map(|s| s.expose_secret().to_string()).unwrap_or_default()
 ///     };
 ///     
 ///     let router_builder = |app_state: AppState<MyState>| {
@@ -368,7 +369,23 @@ where
 /// 
 /// This is the function signature described in the guide:
 /// ```rust,no_run
+/// use pywatt_sdk::prelude::*;
+/// use pywatt_sdk::core::error::Result;
+/// use pywatt_sdk::services::server::serve_module_with_lifecycle as serve_module;
+/// use axum::{Router, routing::get, Extension};
+/// use secrecy::{SecretString, ExposeSecret};
+/// 
+/// # #[derive(Clone)]
+/// # struct MyState { db_url: String }
+/// #
+/// # async fn example() -> Result<()> {
+/// #   let secret_keys = vec!["DATABASE_URL".to_string()];
+/// #   let endpoints = vec![];
+/// #   let state_builder = |_: &OrchestratorInit, _: Vec<SecretString>| MyState { db_url: String::new() };
+/// #   let router_builder = |_: AppState<MyState>| Router::new();
 /// serve_module(secret_keys, endpoints, state_builder, router_builder).await?;
+/// #   Ok(())
+/// # }
 /// ```
 pub async fn serve_module_with_lifecycle<T, F, R>(
     secret_keys: Vec<String>,

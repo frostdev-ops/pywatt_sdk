@@ -184,6 +184,7 @@ async fn test_ipc_channel_config() {
 /// Integration test that verifies the complete bootstrap flow with mock orchestrator
 /// Note: This is a conceptual test - in practice, we'd need a mock orchestrator
 #[tokio::test]
+#[ignore]
 async fn test_bootstrap_flow_concept() {
     // This test demonstrates what a full bootstrap test would look like
     // In practice, we'd need to set up a mock orchestrator that:

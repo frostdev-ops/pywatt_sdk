@@ -120,14 +120,26 @@ pub fn create_generator_for_database(
 /// 
 /// # Examples
 /// ```rust
-/// use pywatt_sdk::model_manager::{validate_model, ModelDescriptor};
+/// use pywatt_sdk::services::model_manager::{validate_model, ModelDescriptor, ColumnDescriptor, DataType, IntegerSize};
 /// 
 /// let model = ModelDescriptor {
 ///     // ... model definition
-/// #   name: "test".to_string(),
+/// #   name: "test_doctest_table".to_string(),
 /// #   schema: None,
-/// #   columns: vec![],
-/// #   primary_key: None,
+/// #   columns: vec![
+/// #       ColumnDescriptor {
+/// #           name: "id".to_string(),
+/// #           data_type: DataType::Integer(IntegerSize::I64),
+/// #           is_nullable: false,
+/// #           is_primary_key: true, // Set is_primary_key on the column
+/// #           is_unique: false,
+/// #           default_value: None,
+/// #           auto_increment: true,
+/// #           comment: None,
+/// #           constraints: vec![],
+/// #       }
+/// #   ],
+/// #   primary_key: None, // Set to None as is_primary_key is true on the column
 /// #   indexes: vec![],
 /// #   constraints: vec![],
 /// #   comment: None,
@@ -288,10 +300,29 @@ pub fn validate_model(model: &ModelDescriptor) -> Result<()> {
 /// 
 /// let model = ModelDescriptor {
 ///     // ... model definition
-/// #   name: "test".to_string(),
+/// #   name: "test_doctest_table".to_string(),
 /// #   schema: None,
-/// #   columns: vec![],
-/// #   primary_key: None,
+/// #   columns: vec![
+/// #       ColumnDescriptor {
+/// #           name: "id".to_string(),
+/// #           data_type: DataType::Integer(IntegerSize::I64),
+/// #           is_nullable: false,
+/// #           is_primary_key: true, // Set is_primary_key on the column
+/// #           default_value: None,
+/// #           comment: None,
+/// #           charset: None,
+/// #           collation: None,
+/// #           srid: None,
+/// #           array_dimensions: None,
+/// #           generated_as: None,
+/// #           on_update_current_timestamp: false,
+/// #           foreign_key: None,
+/// #           enum_type: None,
+/// #           constraints: vec![],
+/// #           options: Default::default(),
+/// #       }
+/// #   ],
+/// #   primary_key: None, // Set to None as is_primary_key is true on the column
 /// #   indexes: vec![],
 /// #   constraints: vec![],
 /// #   comment: None,

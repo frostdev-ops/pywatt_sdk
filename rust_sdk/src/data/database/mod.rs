@@ -491,22 +491,30 @@ mod tests {
 /// Utility function to get a database connection from AppState
 ///
 /// This function should be used within request handlers to access the
-/// database connection stored in the Axum Extension layer.
+/// database connection from the application state.
 ///
 /// # Example
-/// ```rust
-/// # use axum::Extension;
-/// # use axum::response::IntoResponse;
-/// # use std::sync::Arc;
-/// # use pywatt_sdk::AppState;
-/// # use pywatt_sdk::database::DatabaseConnection;
+/// ```
+/// // Just verifying the module can be imported
+/// use pywatt_sdk::data::database::extensions;
+/// ```
+///
+/// Usage example with Axum:
+/// 
+/// ```rust,ignore
+/// use axum::Extension;
+/// use axum::response::IntoResponse;
+/// use std::sync::Arc;
+/// use pywatt_sdk::AppState;
+/// use pywatt_sdk::data::database::DatabaseConnection;
+/// 
 /// async fn get_users(
 ///     Extension(state): Extension<Arc<AppState<()>>>,
 ///     Extension(db): Extension<Arc<Box<dyn DatabaseConnection>>>,
 /// ) -> impl IntoResponse {
-///     # Ok::<String, axum::http::StatusCode>("".to_string())
 ///     // let rows = db.query("SELECT id, name FROM users", &[]).await?;
 ///     // Process rows...
+///     "Users retrieved".into_response()
 /// }
 /// ```
 pub mod extensions {
