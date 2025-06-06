@@ -1,6 +1,6 @@
 [package]
 name = "pywatt_sdk"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 authors = ["James Kueller <james@pma-electric.com>"]
 description = "Standardized SDK for building PyWatt modules in Rust"
@@ -87,7 +87,7 @@ fastrand = { version = "2.0", optional = true }
 chrono = "0.4"
 
 [features]
-default = ["tcp", "ipc_channel", "bincode_serialization"]
+default = ["tcp", "ipc_channel", "bincode_serialization", "test_utils"]
 proc_macros = ["pywatt_macros"]
 router_ext = []
 metrics = ["router_ext", "prometheus", "dep:metrics"]
@@ -114,6 +114,7 @@ bincode_serialization = ["bincode"]
 secret_client_logging = []
 macros = ["proc_macros"]
 ipc_channel = ["tcp", "dep:url"]
+test_utils = ["fastrand"]
 
 # Advanced communication features
 advanced_routing = ["bincode"]

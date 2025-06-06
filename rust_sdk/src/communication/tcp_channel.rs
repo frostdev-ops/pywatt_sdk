@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::net::SocketAddr;
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::Mutex;
 use tokio::time::timeout as tokio_timeout;
@@ -52,36 +53,49 @@ impl TcpChannel {
     /// to create a TcpChannel to communicate with the client. Unlike the normal 
     /// connect flow, the connection is already established.
     ///
+    /// This method is fully asynchronous and properly handles connection state management.
+    /// The wire protocol includes message encoding format, so no separate encoding configuration
+    /// is required.
+    ///
     /// # Arguments
     /// * `stream` - The accepted TCP stream
     /// * `addr` - The remote socket address
-    /// * `default_encoding` - The default encoding format for messages
     ///
     /// # Returns
     /// A new TcpChannel instance wrapping the accepted connection
-    pub fn from_accepted_stream(
+    pub async fn from_accepted_stream(
         stream: TokioTcpStream, 
-        addr: SocketAddr,
-        default_encoding: EncodingFormat
+        addr: SocketAddr
+        // default_encoding: EncodingFormat, // Removed as wire protocol includes format
     ) -> Self {
         // Create a configuration for the accepted connection
         let config = ConnectionConfig {
-            address: addr.to_string(),
+            host: addr.ip().to_string(),
+            port: addr.port(),
             reconnect_policy: ReconnectPolicy::None, // No reconnect for accepted connections
-            encoding: default_encoding,
+            // timeout and tls_config will use defaults from ConnectionConfig::default()
             ..ConnectionConfig::default()
         };
+        // Note: The wire protocol includes the encoding format, so TcpChannel doesn't
+        // need to store a default_encoding separately for accepted streams.
+        // EncodedMessage::read_from_async handles format detection.
         
         // Create the channel with the already connected stream
-        let mut channel = Self::new(config);
+        let channel = Self::new(config);
+
+        // Manually set the stream and state for the accepted connection
+        // This bypasses the usual connect() logic which tries to establish a new connection.
+        {
+            let mut stream_guard = channel.stream.lock().await;
+            *stream_guard = Some(stream);
+            // stream_guard is dropped here as it goes out of scope
+        }
         
-        // Set the stream
-        let mut stream_guard = futures::executor::block_on(channel.stream.lock());
-        *stream_guard = Some(stream);
-        
-        // Set the state to connected
-        let mut state_guard = futures::executor::block_on(channel.state.lock());
-        *state_guard = ConnectionState::Connected;
+        {
+            let mut state_guard = channel.state.lock().await;
+            *state_guard = ConnectionState::Connected;
+            // state_guard is dropped here as it goes out of scope
+        }
         
         channel
     }
@@ -500,9 +514,12 @@ impl Drop for TcpChannel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio::sync::mpsc;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::TcpListener;
     use crate::message::Message;
+    use crate::message::EncodedMessage;
+    use crate::message::MessageMetadata;
     
     // Test helper to create a mock TCP server
     async fn mock_tcp_server(port: u16) -> NetworkResult<tokio::task::JoinHandle<()>> {
@@ -614,4 +631,96 @@ mod tests {
         
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_from_accepted_stream() -> NetworkResult<()> {
+        // Create a channel for communication between client and server
+        let (tx, mut rx) = mpsc::channel(10);
+        
+        // Start server in the background
+        let server_port = fastrand::u16(10000..20000);
+        let server_addr_str = format!("127.0.0.1:{}", server_port);
+        let server_addr_for_server = server_addr_str.clone();
+        let server_addr_for_client = server_addr_str.clone();
+        let server_handle = tokio::spawn(async move {
+            // Bind to a socket
+            let listener = TcpListener::bind(&server_addr_for_server).await.unwrap();
+            
+            // Accept a connection
+            let (stream, addr) = listener.accept().await.unwrap();
+            
+            // Create a TcpChannel from the accepted stream
+            let server_channel = TcpChannel::from_accepted_stream(stream, addr).await;
+            
+            // Verify the channel's state is Connected
+            assert_eq!(server_channel.state().await, ConnectionState::Connected);
+            
+            // Wait for a message from the client
+            let received = server_channel.receive_message().await.unwrap();
+            
+            // Send it to our verification channel
+            tx.send(received).await.unwrap();
+            
+            // Create a message with metadata
+            let response_data = serde_json::json!({"status": "ok"});
+            let mut response_msg = Message::new(response_data);
+            // Set an identifiable property in metadata directly
+            let mut metadata = MessageMetadata::new();
+            metadata.id = Some("response".to_string());
+            response_msg.set_metadata(metadata);
+            
+            // Encode the message
+            let encoded_response = EncodedMessage::from_message(response_msg).unwrap();
+            server_channel.send_message(&encoded_response).await.unwrap();
+        });
+        
+        // Give the server a moment to start up
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        
+        // Connect a client to the server
+        let client_stream = TcpStream::connect(&server_addr_for_client).await?;
+        let client_channel = TcpChannel::new(ConnectionConfig {
+            host: "127.0.0.1".into(),
+            port: server_port,
+            ..ConnectionConfig::default()
+        });
+        
+        // Set the stream directly to simulate a client-side connection
+        {
+            let mut stream_guard = client_channel.stream.lock().await;
+            *stream_guard = Some(client_stream);
+        }
+        {
+            let mut state_guard = client_channel.state.lock().await;
+            *state_guard = ConnectionState::Connected;
+        }
+        
+        // Create a message with metadata
+        let test_data = serde_json::json!({"hello": "server"});
+        let mut test_msg = Message::new(test_data);
+        // Set an identifiable property in metadata directly
+        let mut metadata = MessageMetadata::new();
+        metadata.id = Some("test".to_string());
+        test_msg.set_metadata(metadata);
+        
+        // Encode and send the message
+        let test_message = EncodedMessage::from_message(test_msg).unwrap();
+        client_channel.send_message(&test_message).await?;
+        
+        // Verify the server received our message
+        let server_received = rx.recv().await.expect("Server should have received the message");
+        let kind = server_received.peek_kind().unwrap_or_else(|_| "unknown".to_string());
+        assert_eq!(kind, "test");
+        
+        // Receive the server's response
+        let client_received = client_channel.receive_message().await?;
+        let kind = client_received.peek_kind().unwrap_or_else(|_| "unknown".to_string());
+        assert_eq!(kind, "response");
+        
+        // Wait for the server to finish
+        server_handle.await.unwrap();
+        
+        Ok(())
+    }
+
 } 

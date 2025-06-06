@@ -1,10 +1,6 @@
+// Only import what's actually used in the memcached feature
+#[cfg(feature = "memcached")]
 use crate::data::cache::{CacheConfig, CacheError, CacheResult, CacheService, CacheStats, CacheType};
-use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use uuid::Uuid;
 
 /// Memcached cache implementation
 #[cfg(feature = "memcached")]

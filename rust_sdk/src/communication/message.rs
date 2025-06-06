@@ -286,6 +286,21 @@ impl<T> Message<T> {
     }
 }
 
+/// Represents the basic structure of a message on the wire, used for peeking.
+#[derive(Serialize, Deserialize, Debug, Clone, bincode::Encode, bincode::Decode)]
+struct WireMessage {
+    kind: String, // Or 'op', 'type', etc., depending on the exact wire protocol for kind identification
+}
+
+/// A placeholder struct for decoding messages where content is not needed.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, bincode::Encode, bincode::Decode)]
+struct EmptyStruct;
+
+/// Returns a standard bincode configuration.
+fn bincode_config() -> bincode::config::Configuration {
+    bincode::config::standard()
+}
+
 /// An encoded message ready for transmission.
 #[derive(Debug, Clone)]
 pub struct EncodedMessage {
@@ -678,6 +693,16 @@ impl EncodedMessage {
     }
 
     /// Write the encoded message to an async writer.
+    ///
+    /// The message is framed on the wire as follows:
+    /// 1. Length Header: 4 bytes, big-endian `u32`, representing the length of the data payload (item 3).
+    /// 2. Format Code: 1 byte, indicating the encoding format of the data payload:
+    ///    - `1`: JSON
+    ///    - `2`: Binary (Bincode)
+    ///    - `3`: Base64
+    /// 3. Data Payload: The actual message bytes, encoded according to the format code.
+    ///
+    /// Note: `EncodingFormat::Auto` is not a valid format for writing and will result in an error.
     pub async fn write_to_async<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> MessageResult<()> {
         // Auto format should never be used for writing
         if self.format == EncodingFormat::Auto {
@@ -705,6 +730,17 @@ impl EncodedMessage {
     }
 
     /// Read an encoded message from an async reader.
+    ///
+    /// Expects the message to be framed on the wire as follows:
+    /// 1. Length Header: 4 bytes, big-endian `u32`, representing the length of the data payload (item 3).
+    /// 2. Format Code: 1 byte, indicating the encoding format of the data payload:
+    ///    - `1`: JSON
+    ///    - `2`: Binary (Bincode)
+    ///    - `3`: Base64
+    ///    - `0`: Auto (This is an invalid format code to receive from a stream and will result in an error).
+    /// 3. Data Payload: The actual message bytes, encoded according to the format code.
+    ///
+    /// The method reads these components and reconstructs an `EncodedMessage`.
     pub async fn read_from_async<R: AsyncRead + Unpin>(reader: &mut R) -> MessageResult<Self> {
         // Read the 4-byte length header
         let mut len_bytes = [0u8; 4];
@@ -736,76 +772,100 @@ impl EncodedMessage {
 
     /// Peek at the message type without full deserialization.
     pub fn peek_kind(&self) -> MessageResult<String> {
+        const DEFAULT_KIND: &str = "Unknown";
         match self.format {
             EncodingFormat::Json => {
-                // For JSON, just try to peek into the "op" field in the message
-                match serde_json::from_slice::<serde_json::Value>(&self.data) {
-                    Ok(value) => {
-                        if let Some(obj) = value.as_object() {
-                            if let Some(op) = obj.get("op") {
-                                if let Some(op_str) = op.as_str() {
-                                    return Ok(op_str.to_string());
+                match serde_json::from_slice::<WireMessage>(&self.data) {
+                    Ok(wire_message) => Ok(wire_message.kind),
+                    Err(e) => {
+                        // Attempt to parse as generic JSON to find 'op' if WireMessage fails
+                        match serde_json::from_slice::<serde_json::Value>(&self.data) {
+                            Ok(value) => {
+                                if let Some(obj) = value.as_object() {
+                                    // Try to find 'op' field first (legacy format)
+                                    if let Some(op_val) = obj.get("op") {
+                                        if let Some(op_str) = op_val.as_str() {
+                                            return Ok(op_str.to_string());
+                                        }
+                                    }
+                                    
+                                    // Try to find a metadata.id field (new format)
+                                    if let Some(metadata) = obj.get("metadata") {
+                                        if let Some(metadata_obj) = metadata.as_object() {
+                                            if let Some(id_val) = metadata_obj.get("id") {
+                                                if let Some(id_str) = id_val.as_str() {
+                                                    eprintln!("[DEBUG peek_kind/JSON] Found metadata.id: '{}'", id_str);
+                                                    return Ok(id_str.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
+                                eprintln!(
+                                    "peek_kind (JSON): WireMessage decode failed, metadata.id not found. Error: {:?}. Data (first 100 bytes): {:?}",
+                                    e, &self.data.iter().take(100).collect::<Vec<&u8>>()
+                                );
+                                Ok(DEFAULT_KIND.to_string())
+                            }
+                            Err(json_err) => {
+                                eprintln!(
+                                    "peek_kind (JSON): Failed to decode as WireMessage or generic JSON. WireMessage Error: {:?}, JSON Error: {:?}. Data (first 64 bytes): {:?}",
+                                    e, json_err, &self.data.iter().take(64).collect::<Vec<&u8>>());
+                                Ok("Invalid JSON".to_string())
                             }
                         }
-                        Ok("Unknown".to_string())
                     }
-                    Err(_) => Ok("Invalid JSON".to_string()),
                 }
             }
-            EncodingFormat::Binary | EncodingFormat::Base64 => {
-                // For binary and base64, we can try to decode and check for common patterns
-                match self.format {
-                    EncodingFormat::Binary => {
-                        // Try to decode as bincode first to see if we can extract any type info
-                        if self.data.len() >= 4 {
-                            // Check for common bincode patterns or magic bytes
-                            let first_bytes = &self.data[0..4.min(self.data.len())];
-                            
-                            // Look for common patterns that might indicate message type
-                            match first_bytes {
-                                [0x00, 0x00, 0x00, _] => Ok("Bincode Message".to_string()),
-                                [b'{', _, _, _] => Ok("JSON in Binary".to_string()),
-                                _ => {
-                                    // Try to find any readable ASCII that might indicate type
-                                    if let Ok(text) = std::str::from_utf8(&self.data[0..32.min(self.data.len())]) {
-                                        if text.contains("type") || text.contains("op") || text.contains("command") {
-                                            Ok(format!("Text Message: {}", text.chars().take(20).collect::<String>()))
-                                        } else {
-                                            Ok(format!("Binary Data ({} bytes)", self.data.len()))
-                                        }
-                                    } else {
-                                        Ok(format!("Binary Data ({} bytes)", self.data.len()))
-                                    }
+            EncodingFormat::Binary => {
+                let data_to_decode = &self.data;
+                match bincode::decode_from_slice::<Message<EmptyStruct>, _>(data_to_decode, bincode_config()) {
+                    Ok((decoded_message, _)) => {
+                        // Metadata is a direct field, not an Option
+                        if let Some(id) = decoded_message.metadata.id {
+                            eprintln!("[DEBUG peek_kind/Binary] Successfully decoded Message<EmptyStruct>. ID: '{}'", id);
+                            return Ok(id);
+                        }
+                        eprintln!("[DEBUG peek_kind/Binary] Decoded Message<EmptyStruct> but no id in metadata. Message: {:?}", decoded_message);
+                        Ok("Unknown".to_string())
+                    }
+                    Err(e) => {
+                        eprintln!("[DEBUG peek_kind/Binary] Failed to decode Message<EmptyStruct>: {}. Raw data (first 100 bytes): {:?}", e, &data_to_decode[..std::cmp::min(100, data_to_decode.len())]);
+                        Ok("Unknown".to_string())
+                    }
+                }
+            }
+            EncodingFormat::Base64 => {
+                match base64::engine::general_purpose::STANDARD.decode(&self.data) {
+                    Ok(decoded_base64_data) => {
+                        let decoded_bytes = decoded_base64_data;
+                        match bincode::decode_from_slice::<Message<EmptyStruct>, _>(&decoded_bytes, bincode_config()) {
+                            Ok((decoded_message, _)) => {
+                                // Metadata is a direct field, not an Option
+                                if let Some(id) = decoded_message.metadata.id {
+                                    eprintln!("[DEBUG peek_kind/Base64] Successfully decoded Message<EmptyStruct>. ID: '{}'", id);
+                                    return Ok(id);
                                 }
+                                eprintln!("[DEBUG peek_kind/Base64] Decoded Message<EmptyStruct> but no id in metadata. Message: {:?}", decoded_message);
+                                Ok("Unknown".to_string())
                             }
-                        } else {
-                            Ok(format!("Small Binary ({} bytes)", self.data.len()))
+                            Err(e) => {
+                                eprintln!("[DEBUG peek_kind/Base64] Failed to decode Message<EmptyStruct> from base64 decoded data: {}. Raw base64 data (first 100 chars): {:?}. Decoded bytes (first 100): {:?}", e, String::from_utf8_lossy(&self.data[..std::cmp::min(100, self.data.len())]), &decoded_bytes[..std::cmp::min(100, decoded_bytes.len())]);
+                                Ok("Unknown".to_string())
+                            }
                         }
                     }
-                    EncodingFormat::Base64 => {
-                        // For Base64, try to decode and check the content
-                        match base64::engine::general_purpose::STANDARD.decode(&self.data) {
-                            Ok(decoded) => {
-                                if let Ok(text) = std::str::from_utf8(&decoded[0..32.min(decoded.len())]) {
-                                    if text.starts_with('{') {
-                                        Ok("Base64 JSON".to_string())
-                                    } else {
-                                        Ok(format!("Base64 Text: {}", text.chars().take(20).collect::<String>()))
-                                    }
-                                } else {
-                                    Ok(format!("Base64 Binary ({} bytes decoded)", decoded.len()))
-                                }
-                            }
-                            Err(_) => Ok("Invalid Base64".to_string())
-                        }
+                    Err(e) => {
+                        eprintln!(
+                            "peek_kind (Base64): Failed to decode from Base64. Error: {:?}. Original Data (first 64 bytes): {:?}",
+                            e, &self.data.iter().take(64).collect::<Vec<&u8>>());
+                        Ok("Invalid Base64".to_string())
                     }
-                    _ => Ok("Binary Data".to_string()) // Fallback
                 }
             }
             EncodingFormat::Auto => {
-                // Auto should never be the actual format of a message
-                Err(MessageError::UnsupportedFormat(self.format))
+                // Auto should never be the actual format of an encoded message instance
+                Err(MessageError::UnsupportedFormat(EncodingFormat::Auto))
             }
         }
     }
