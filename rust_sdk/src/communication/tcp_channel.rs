@@ -46,6 +46,46 @@ impl TcpChannel {
         &self.config
     }
     
+    /// Create a TcpChannel from an accepted stream (server-side).  
+    /// 
+    /// This is used when the server has already accepted a connection and needs
+    /// to create a TcpChannel to communicate with the client. Unlike the normal 
+    /// connect flow, the connection is already established.
+    ///
+    /// # Arguments
+    /// * `stream` - The accepted TCP stream
+    /// * `addr` - The remote socket address
+    /// * `default_encoding` - The default encoding format for messages
+    ///
+    /// # Returns
+    /// A new TcpChannel instance wrapping the accepted connection
+    pub fn from_accepted_stream(
+        stream: TokioTcpStream, 
+        addr: SocketAddr,
+        default_encoding: EncodingFormat
+    ) -> Self {
+        // Create a configuration for the accepted connection
+        let config = ConnectionConfig {
+            address: addr.to_string(),
+            reconnect_policy: ReconnectPolicy::None, // No reconnect for accepted connections
+            encoding: default_encoding,
+            ..ConnectionConfig::default()
+        };
+        
+        // Create the channel with the already connected stream
+        let mut channel = Self::new(config);
+        
+        // Set the stream
+        let mut stream_guard = futures::executor::block_on(channel.stream.lock());
+        *stream_guard = Some(stream);
+        
+        // Set the state to connected
+        let mut state_guard = futures::executor::block_on(channel.state.lock());
+        *state_guard = ConnectionState::Connected;
+        
+        channel
+    }
+    
     /// Connect to the TCP server.
     pub async fn connect(config: ConnectionConfig) -> NetworkResult<Self> {
         let channel = Self::new(config);
