@@ -21,11 +21,19 @@ jobs:
           environment-file: python_sdk/environment.yml
           activate-environment: pywatt-sdk
           use-mamba: true
+          miniforge-variant: Mambaforge
+          channels: conda-forge,defaults
+          channel-priority: flexible
+          show-channel-urls: true
       - name: Install Python SDK
         working-directory: python_sdk
+        shell: bash -l {0}
         run: |
+          conda info
+          conda list
           pip install . --no-deps
       - name: Run tests
         working-directory: python_sdk
+        shell: bash -l {0}
         run: |
           pytest 
