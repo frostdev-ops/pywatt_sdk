@@ -21,7 +21,6 @@ jobs:
           environment-file: python_sdk/environment.yml
           activate-environment: pywatt-sdk
           use-mamba: true
-          miniforge-variant: Mambaforge
           channels: conda-forge,defaults
           channel-priority: flexible
           show-channel-urls: true
