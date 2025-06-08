@@ -6,15 +6,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::communication::ipc_types::{
-    ServiceType, RegisterServiceProviderRequest, RegisterServiceProviderResponse,
-    DiscoverServiceProvidersRequest, DiscoverServiceProvidersResponse,
+    ServiceType, RegisterServiceProviderRequest,
+    DiscoverServiceProvidersRequest,
     ServiceProviderInfo, ModuleToOrchestrator, OrchestratorToModule,
 };
-use crate::message::{Message, MessageMetadata, EncodingFormat};
+use crate::message::{Message, MessageMetadata};
 use crate::communication::{MessageChannel, TcpChannel};
 use crate::communication::tcp_types::ConnectionConfig;
 

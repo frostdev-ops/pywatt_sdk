@@ -1,6 +1,6 @@
 //! CLI tool for managing database models and schemas
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Subcommand, ValueEnum};
 use pywatt_sdk::model_manager::ModelDescriptor;
 use serde::Deserialize;
 #[allow(unused_imports)]

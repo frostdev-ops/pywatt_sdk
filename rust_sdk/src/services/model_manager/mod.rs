@@ -30,7 +30,6 @@ pub use sdk_integration::ModelManager;
 
 
 // Import adapter implementations
-use adapters::{MySqlAdapter, PostgresAdapter, SqliteAdapter};
 
 // Public API functions
 

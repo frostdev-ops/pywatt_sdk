@@ -8,10 +8,6 @@
 use crate::data::database::{DatabaseConnection, DatabaseError, DatabaseResult, DatabaseType};
 
 // Import model manager types
-use crate::model_manager::{
-    ModelDescriptor, DatabaseAdapter, ModelGenerator, Error as ModelError,
-    adapters::{SqliteAdapter, MySqlAdapter, PostgresAdapter},
-};
 
 // For when database feature is disabled, define placeholder types
 #[cfg(not(feature = "database"))]
