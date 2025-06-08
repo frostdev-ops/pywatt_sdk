@@ -372,6 +372,12 @@ pub struct MessageBatch {
     pub batch_id: Uuid,
 }
 
+impl Default for MessageBatch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MessageBatch {
     /// Create a new empty batch
     pub fn new() -> Self {
@@ -446,7 +452,7 @@ impl MessageBatcher {
         if !batch.add_message(message.clone()) {
             // Current batch is full, send it and start a new one
             if !batch.is_empty() {
-                let ready_batch = std::mem::replace(&mut *batch, MessageBatch::new());
+                let ready_batch = std::mem::take(&mut *batch);
                 self.sender.send(ready_batch)
                     .map_err(|_| MessageError::InvalidFormat("Batch channel closed".to_string()))?;
             }
@@ -459,7 +465,7 @@ impl MessageBatcher {
         
         // Check if batch is ready to send
         if batch.is_ready(&self.config) {
-            let ready_batch = std::mem::replace(&mut *batch, MessageBatch::new());
+            let ready_batch = std::mem::take(&mut *batch);
             self.sender.send(ready_batch)
                 .map_err(|_| MessageError::InvalidFormat("Batch channel closed".to_string()))?;
         }
@@ -472,7 +478,7 @@ impl MessageBatcher {
         let mut batch = self.pending_batch.lock().unwrap();
         
         if !batch.is_empty() {
-            let ready_batch = std::mem::replace(&mut *batch, MessageBatch::new());
+            let ready_batch = std::mem::take(&mut *batch);
             self.sender.send(ready_batch)
                 .map_err(|_| MessageError::InvalidFormat("Batch channel closed".to_string()))?;
         }
@@ -635,7 +641,7 @@ impl MessageCompressor {
     }
     
     /// Compress a message if it meets the threshold
-    pub fn compress_message(&self, message: &mut EncodedMessage) -> Result<bool, MessageError> {
+    pub fn compress_message(&self, _message: &mut EncodedMessage) -> Result<bool, MessageError> {
         #[cfg(feature = "advanced_failover")]
         {
             if !self.config.enable_compression {
@@ -671,7 +677,7 @@ impl MessageCompressor {
     }
     
     /// Decompress a message
-    pub fn decompress_message(&self, message: &mut EncodedMessage) -> Result<(), MessageError> {
+    pub fn decompress_message(&self, _message: &mut EncodedMessage) -> Result<(), MessageError> {
         #[cfg(feature = "advanced_failover")]
         {
             let mut decoder = GzDecoder::new(message.data());

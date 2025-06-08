@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 use tokio::sync::broadcast;
 use tokio::time::{Duration, timeout};
 use tracing::{debug, error, info};
+use serde::{Deserialize, Serialize};
 
 // Global singleton for the default client
 // This might need rethinking in the SDK context. Maybe it shouldn't be global?
@@ -389,12 +390,12 @@ impl SecretClient {
     pub async fn get_typed<T>(
         &self,
         key: &str,
-    ) -> Result<crate::typed_secret::Secret<T>, crate::typed_secret::TypedSecretError>
+    ) -> Result<crate::security::secrets::typed_secret::Secret<T>, crate::security::secrets::typed_secret::TypedSecretError>
     where
         T: std::str::FromStr,
         T::Err: std::fmt::Display,
     {
-        crate::typed_secret::get_typed_secret(self, key).await
+        crate::security::secrets::typed_secret::get_typed_secret(self, key).await
     }
 
     /// Retrieves a secret as a string value.
@@ -423,8 +424,8 @@ impl SecretClient {
     pub async fn get_string(
         &self,
         key: &str,
-    ) -> Result<crate::typed_secret::Secret<String>, crate::typed_secret::TypedSecretError> {
-        crate::typed_secret::get_string_secret(self, key).await
+    ) -> Result<crate::security::secrets::typed_secret::Secret<String>, crate::security::secrets::typed_secret::TypedSecretError> {
+        crate::security::secrets::typed_secret::get_string_secret(self, key).await
     }
 
     /// Retrieves a secret as a boolean value.
@@ -454,8 +455,8 @@ impl SecretClient {
     pub async fn get_bool(
         &self,
         key: &str,
-    ) -> Result<crate::typed_secret::Secret<bool>, crate::typed_secret::TypedSecretError> {
-        crate::typed_secret::get_bool_secret(self, key).await
+    ) -> Result<crate::security::secrets::typed_secret::Secret<bool>, crate::security::secrets::typed_secret::TypedSecretError> {
+        crate::security::secrets::typed_secret::get_bool_secret(self, key).await
     }
 
     /// Retrieves a secret as an integer value of type T.
@@ -483,12 +484,12 @@ impl SecretClient {
     pub async fn get_int<T>(
         &self,
         key: &str,
-    ) -> Result<crate::typed_secret::Secret<T>, crate::typed_secret::TypedSecretError>
+    ) -> Result<crate::security::secrets::typed_secret::Secret<T>, crate::security::secrets::typed_secret::TypedSecretError>
     where
         T: std::str::FromStr + std::fmt::Debug,
         T::Err: std::fmt::Display,
     {
-        crate::typed_secret::get_int_secret(self, key).await
+        crate::security::secrets::typed_secret::get_int_secret(self, key).await
     }
 }
 

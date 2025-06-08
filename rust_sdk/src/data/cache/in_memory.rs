@@ -78,8 +78,7 @@ impl InMemoryCache {
         // Use helper accessor that resolves duration from CacheConfig
         let default_ttl = config.get_default_ttl();
         let max_items = config.max_size_bytes.map(|bytes| {
-            // Rough estimate: 1 item ≈ 100 bytes including overhead
-            (bytes / 100) as usize
+            bytes / 100
         });
 
         let cache = Self {

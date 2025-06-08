@@ -321,6 +321,7 @@ impl CacheService for FileCache {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&file_path)
             .map_err(|e| CacheError::Operation(format!("Failed to open cache file: {}", e)))?;
 
@@ -433,7 +434,7 @@ impl CacheService for FileCache {
 
         // Otherwise, only clear keys with the matching namespace
         // This is a naive implementation - for production you'd need something more efficient
-        let target_namespace = namespace.or_else(|| self.namespace.as_deref());
+        let target_namespace = namespace.or(self.namespace.as_deref());
 
         if let Some(ns) = target_namespace {
             // Simply delete all files that might have this namespace
@@ -568,7 +569,7 @@ impl CacheService for FileCache {
 
         // Try to write a test file
         let test_file = self.base_dir.join("ping_test");
-        match OpenOptions::new().write(true).create(true).open(&test_file) {
+        match OpenOptions::new().write(true).create(true).truncate(true).open(&test_file) {
             Ok(_) => {
                 // Cleanup
                 let _ = fs::remove_file(test_file);

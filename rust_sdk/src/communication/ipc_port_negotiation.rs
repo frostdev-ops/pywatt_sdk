@@ -77,8 +77,10 @@ lazy_static::lazy_static! {
 
 /// Circuit breaker state
 #[derive(Debug, Clone)]
+#[derive(Default)]
 enum CircuitBreakerStatus {
     /// Circuit is closed, normal operation
+    #[default]
     Closed,
     /// Circuit is open, using fallback mechanisms
     Open,
@@ -86,14 +88,10 @@ enum CircuitBreakerStatus {
     HalfOpen,
 }
 
-impl Default for CircuitBreakerStatus {
-    fn default() -> Self {
-        CircuitBreakerStatus::Closed
-    }
-}
 
 /// Circuit breaker state
 #[derive(Debug, Clone)]
+#[derive(Default)]
 struct CircuitBreakerState {
     /// Current status of the circuit breaker
     status: CircuitBreakerStatus,
@@ -105,16 +103,6 @@ struct CircuitBreakerState {
     last_attempt: Option<Instant>,
 }
 
-impl Default for CircuitBreakerState {
-    fn default() -> Self {
-        Self {
-            status: CircuitBreakerStatus::default(),
-            failure_count: 0,
-            opened_at: None,
-            last_attempt: None,
-        }
-    }
-}
 
 /// Port negotiation state
 #[derive(Debug, Clone, Default)]
@@ -839,19 +827,16 @@ impl PortNegotiationManager {
                     }
                     
                     let _diagnostics = {
-                        let mut diags = Vec::new();
-                        diags.push(format!("Fallback port {} allocated", fallback_port));
-                        diags.push(format!("Circuit breaker status: {:?}", cb_status));
-                        
-                        // More diagnostic info
-                        if let Ok(cb_state) = CIRCUIT_BREAKER.lock() {
-                            diags.push(format!("Failure count: {}", cb_state.failure_count));
-                            if let Some(opened_at) = cb_state.opened_at {
-                                diags.push(format!("Circuit opened {} seconds ago", opened_at.elapsed().as_secs()));
+                        let state = match PORT_NEGOTIATION_STATE.lock() {
+                            Ok(guard) => guard,
+                            Err(_e) => {
+                                return PortNegotiationResult::Timeout {
+                                    elapsed_secs: elapsed.as_secs(),
+                                    request_id,
+                                };
                             }
-                        }
-                        
-                        diags
+                        };
+                        state.failure_diagnostics.clone()
                     };
                     
                     PortNegotiationResult::UsingFallback {
@@ -861,10 +846,10 @@ impl PortNegotiationManager {
                 } else {
                     // No retry and no fallback, just return timeout error
                     // Get diagnostics from state
-                    let diagnostics = {
+                    let _diagnostics = {
                         let state = match PORT_NEGOTIATION_STATE.lock() {
                             Ok(guard) => guard,
-                            Err(e) => {
+                            Err(_e) => {
                                 return PortNegotiationResult::Timeout {
                                     elapsed_secs: elapsed.as_secs(),
                                     request_id,

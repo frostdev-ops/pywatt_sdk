@@ -41,8 +41,10 @@ mod tests {
     fn test_nested_router_discovery() {
         // Create a router with nested routes
         let api_router = Router::new()
+            // Allow legacy ":param" style routes by disabling v0.7 checks
+            .without_v07_checks()
             .route("/users", get(|| async { "Get Users" }))
-            .route("/users/:id", get(|| async { "Get User" }))
+            .route("/users/{id}", get(|| async { "Get User" }))
             .route("/posts", get(|| async { "Get Posts" }));
 
         let router = Router::new()

@@ -266,12 +266,12 @@ impl ChannelPerformanceTracker {
         sla_config: SlaConfig,
         alert_config: AlertConfig,
     ) -> Self {
-        let mut metrics = ChannelMetrics::default();
-        metrics.channel_type = channel_type;
-        
         Self {
             channel_type,
-            metrics: Arc::new(RwLock::new(metrics)),
+            metrics: Arc::new(RwLock::new(ChannelMetrics {
+                channel_type,
+                ..ChannelMetrics::default()
+            })),
             latency_samples: Arc::new(RwLock::new(VecDeque::new())),
             throughput_samples: Arc::new(RwLock::new(VecDeque::new())),
             connection_start_time: Instant::now(),
@@ -436,8 +436,10 @@ impl ChannelPerformanceTracker {
     /// Reset metrics (useful for testing or periodic resets)
     pub fn reset_metrics(&self) {
         let mut metrics = self.metrics.write().unwrap();
-        *metrics = ChannelMetrics::default();
-        metrics.channel_type = self.channel_type;
+        *metrics = ChannelMetrics {
+            channel_type: self.channel_type,
+            ..ChannelMetrics::default()
+        };
         drop(metrics);
         
         let mut latency_samples = self.latency_samples.write().unwrap();

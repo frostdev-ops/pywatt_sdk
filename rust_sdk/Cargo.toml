@@ -27,7 +27,7 @@ serde_json = "1.0.103"
 serde = { version = "1.0.175", features = ["derive"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 prometheus = { version = "0.14.0", optional = true }
-jsonwebtoken = { version = "9.3.1", optional = true }
+jsonwebtoken = { version = "9.3.1", optional = true, features = ["default"] }
 tower = { version = "0.5.2", features = ["util"] }
 base64 = "0.22.1"
 lazy_static = "1.4.0"
@@ -122,3 +122,4 @@ advanced_failover = ["flate2", "fastrand"]
 advanced_metrics = ["metrics"]
 advanced_streaming = ["flate2", "crc32fast", "bincode"]
 advanced_features = ["advanced_routing", "advanced_failover", "advanced_metrics", "advanced_streaming"]
+jsonwebtoken = ["dep:jsonwebtoken"]

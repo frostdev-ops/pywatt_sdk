@@ -402,7 +402,7 @@ impl ChannelRouter {
     /// Make a routing decision for a message
     pub async fn route_message(
         &self,
-        message: &EncodedMessage,
+        _message: &EncodedMessage,
         target: &str,
         characteristics: MessageCharacteristics,
         available_channels: &[ChannelType],
@@ -569,29 +569,29 @@ impl ChannelRouter {
     async fn filter_viable_channels(
         &self,
         available_channels: &[ChannelType],
-        preference: &ChannelPreference,
+        _preference: &ChannelPreference,
         characteristics: &MessageCharacteristics,
     ) -> Vec<ChannelType> {
         let health_map = self.channel_health.read().await;
         let mut viable = Vec::new();
         
         // Check primary channel first
-        if available_channels.contains(&preference.primary) {
-            if let Some(health) = health_map.get(&preference.primary) {
-                if health.connected && self.channel_meets_conditions(health, &preference.conditions, characteristics) {
-                    viable.push(preference.primary);
+        if available_channels.contains(&_preference.primary) {
+            if let Some(health) = health_map.get(&_preference.primary) {
+                if health.connected && self.channel_meets_conditions(health, &_preference.conditions, characteristics) {
+                    viable.push(_preference.primary);
                 }
             } else {
                 // No health data yet, assume it's viable
-                viable.push(preference.primary);
+                viable.push(_preference.primary);
             }
         }
         
         // Check fallback channel
-        if let Some(fallback) = preference.fallback {
+        if let Some(fallback) = _preference.fallback {
             if available_channels.contains(&fallback) && !viable.contains(&fallback) {
                 if let Some(health) = health_map.get(&fallback) {
-                    if health.connected && self.channel_meets_conditions(health, &preference.conditions, characteristics) {
+                    if health.connected && self.channel_meets_conditions(health, &_preference.conditions, characteristics) {
                         viable.push(fallback);
                     }
                 } else {
@@ -677,7 +677,7 @@ impl ChannelRouter {
     
     fn calculate_confidence(
         &self,
-        preference: &ChannelPreference,
+        _preference: &ChannelPreference,
         health: &ChannelHealth,
         characteristics: &MessageCharacteristics,
     ) -> f64 {
@@ -698,7 +698,7 @@ impl ChannelRouter {
         // Adjust based on error rate
         confidence *= 1.0 - health.error_rate;
         
-        confidence.max(0.0).min(1.0)
+        confidence.clamp(0.0, 1.0)
     }
     
     fn get_cached_decision(&self, cache_key: &str) -> Option<RoutingDecision> {
@@ -833,7 +833,7 @@ pub fn extract_message_characteristics(
         priority,
         message_type,
         target_location,
-        requires_ack: metadata.map_or(false, |m| {
+        requires_ack: metadata.is_some_and(|m| {
             m.properties.as_ref()
                 .and_then(|props| props.get("requires_ack"))
                 .and_then(|v| v.as_bool())
@@ -844,7 +844,7 @@ pub fn extract_message_characteristics(
             .and_then(|props| props.get("timeout"))
             .and_then(|v| v.as_u64())
             .map(Duration::from_millis),
-        retryable: metadata.map_or(true, |m| {
+        retryable: metadata.is_none_or(|m| {
             m.properties.as_ref()
                 .and_then(|props| props.get("retryable"))
                 .and_then(|v| v.as_bool())

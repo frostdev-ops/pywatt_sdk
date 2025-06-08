@@ -426,7 +426,7 @@ impl StreamSender {
     ) -> Result<Vec<StreamChunk>, MessageError> {
         let total_size = data.len();
         let mut chunks = Vec::new();
-        let total_chunks = (total_size + config.max_chunk_size - 1) / config.max_chunk_size;
+        let total_chunks = total_size.div_ceil(config.max_chunk_size);
         
         for (sequence, chunk_data) in data.chunks(config.max_chunk_size).enumerate() {
             let mut chunk_data = chunk_data.to_vec();
@@ -713,7 +713,7 @@ impl PriorityMessageQueue {
             .map_err(|_| MessageError::InvalidFormat("Queue semaphore closed".to_string()))?;
         
         let mut queues = self.queues.lock().unwrap();
-        let queue = queues.entry(priority).or_insert_with(VecDeque::new);
+        let queue = queues.entry(priority).or_default();
         queue.push_back(message);
         
         Ok(())

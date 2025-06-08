@@ -470,7 +470,7 @@ impl EncodedMessage {
                 // Decode from base64 first
                 let binary = base64::engine::general_purpose::STANDARD
                     .decode(&self.data)
-                    .map_err(|e| MessageError::Base64DecodingError(e))?;
+                    .map_err(MessageError::Base64DecodingError)?;
 
                 // Then decode from binary
                 let config = bincode::config::standard();
@@ -511,7 +511,7 @@ impl EncodedMessage {
                 // Decode from base64 first
                 let binary = base64::engine::general_purpose::STANDARD
                     .decode(&self.data)
-                    .map_err(|e| MessageError::Base64DecodingError(e))?;
+                    .map_err(MessageError::Base64DecodingError)?;
 
                 // Then decode from binary
                 let config = bincode::config::standard();
@@ -606,7 +606,7 @@ impl EncodedMessage {
                 // Decode base64 first
                 let binary = base64::engine::general_purpose::STANDARD
                     .decode(&self.data)
-                    .map_err(|e| MessageError::Base64DecodingError(e))?;
+                    .map_err(MessageError::Base64DecodingError)?;
 
                 // Try to parse as JSON directly
                 match serde_json::from_slice::<serde_json::Value>(&binary) {
@@ -624,7 +624,7 @@ impl EncodedMessage {
                 // Simply decode the base64
                 let binary = base64::engine::general_purpose::STANDARD
                     .decode(&self.data)
-                    .map_err(|e| MessageError::Base64DecodingError(e))?;
+                    .map_err(MessageError::Base64DecodingError)?;
 
                 Ok(Self {
                     data: binary,
@@ -877,7 +877,7 @@ impl EncodedMessage {
     {
         // Clone the message to avoid ownership issues
         let message_clone = Message {
-            id: message.id.clone(),
+            id: message.id,
             content: message.content.clone(),
             metadata: message.metadata.clone(),
         };

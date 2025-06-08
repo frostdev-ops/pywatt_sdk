@@ -170,8 +170,8 @@ impl InitBlob {
 
     /// Check if the module has required channels
     pub fn has_required_channels(&self) -> bool {
-        self.tcp_channel.as_ref().map_or(false, |c| c.required) ||
-        self.ipc_channel.as_ref().map_or(false, |c| c.required)
+        self.tcp_channel.as_ref().is_some_and(|c| c.required) ||
+        self.ipc_channel.as_ref().is_some_and(|c| c.required)
     }
 }
 

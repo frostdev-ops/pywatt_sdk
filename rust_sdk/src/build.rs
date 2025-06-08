@@ -8,10 +8,7 @@
 //! ## Usage in module build scripts
 //!
 //! ```rust
-//! // In build.rs
-//! fn main() {
-//!     pywatt_sdk::build::emit_build_info();
-//! }
+//! pywatt_sdk::build::emit_build_info();
 //! ```
 //!
 //! ## Using build info in handlers
@@ -56,10 +53,7 @@ pub const RUSTC_VERSION: &str = env!("PYWATT_RUSTC_VERSION");
 /// ## Example
 ///
 /// ```rust
-/// // In your module's build.rs file:
-/// fn main() {
-///     pywatt_sdk::build::emit_build_info();
-/// }
+/// pywatt_sdk::build::emit_build_info();
 /// ```
 ///
 /// ## Rebuild Triggers

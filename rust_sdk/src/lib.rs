@@ -5,10 +5,9 @@ pub mod communication;
 pub mod services;
 pub mod security;
 pub mod data;
+mod internal; // private helpers
 
 pub mod build;
-
-mod internal;
 
 // Legacy root re-exports for backward compatibility
 pub use crate::communication::ipc_types::{Endpoint as AnnouncedEndpoint, Announce as ModuleAnnounce, Init as OrchestratorInit};
@@ -40,19 +39,19 @@ pub use crate::communication::{MessageChannel, TcpChannel};
 // Services modules
 pub use crate::services::registration;
 pub use crate::services::announce;
-pub use crate::services::router_discovery;
 pub use crate::services::model_manager;
 pub use crate::services::server;
-pub use crate::services::service_discovery;
 
 // Security modules
 pub use crate::security::secrets;
-pub use crate::security::secrets::typed_secret;
 pub use crate::security::secret_client;
 pub use crate::security::secret_provider;
 #[cfg(feature = "jwt_auth")]
 pub use crate::security::jwt_auth;
 pub use crate::security::handshake;
+
+// Re-export typed_secret at crate root for backward compatibility
+pub use crate::security::secrets::typed_secret;
 
 // Data modules
 #[cfg(feature = "database")]
@@ -136,10 +135,6 @@ pub mod prelude {
     };
     pub use crate::services::announce::{AnnounceError, send_announce};
     pub use crate::services::server::{serve_module, ServeOptions, serve_module_full, serve_module_with_lifecycle};
-    pub use crate::services::service_discovery::{
-        ServiceDiscoveryClient, ServiceDiscoveryError, ServiceProviderBuilder,
-        RegisteredProvider,
-    };
     
     // Security
     pub use crate::security::handshake::{InitError, read_init};

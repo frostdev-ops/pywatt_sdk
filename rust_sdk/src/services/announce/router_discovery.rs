@@ -1,4 +1,4 @@
-use crate::AnnouncedEndpoint;
+use crate::communication::ipc_types::Endpoint as AnnouncedEndpoint;
 use axum::Router;
 #[allow(unused_imports)] // Used in discovery functions
 use std::collections::{HashMap, HashSet};
@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 /// # Example
 /// ```rust,no_run
 /// use axum::{Router, routing::{get, post}};
-/// use pywatt_sdk::services::router_discovery::announce_from_router;
+/// use pywatt_sdk::services::announce::announce_from_router;
 ///
 /// let router = Router::new()
 ///     .route("/foo", get(|| async { "Hello" }))
@@ -248,16 +248,15 @@ mod tests {
 
     #[test]
     fn test_has_path_parameters() {
-        assert!(has_path_parameters("/users/:id"));
-        assert!(has_path_parameters("/files/*path"));
-        assert!(!has_path_parameters("/users"));
-        assert!(!has_path_parameters("/api/status"));
+        assert!(has_path_parameters("/api/users/:id"));
+        assert!(has_path_parameters("/api/*rest"));
+        assert!(!has_path_parameters("/api/users/list"));
     }
 
     #[test]
     fn test_extract_base_path() {
-        assert_eq!(extract_base_path("/users/:id"), "/users/");
-        assert_eq!(extract_base_path("/api/posts"), "/api/posts");
-        assert_eq!(extract_base_path("/files/*rest"), "/files/");
+        assert_eq!(extract_base_path("/api/users/:id"), "/api/users/");
+        assert_eq!(extract_base_path("/api/users/*rest"), "/api/users/");
+        assert_eq!(extract_base_path("/api/simple"), "/api/simple");
     }
-}
+} 

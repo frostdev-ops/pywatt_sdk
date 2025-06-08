@@ -209,10 +209,7 @@ pub fn json_response<T: Serialize>(
         message,
     };
     
-    let body = match serde_json::to_vec(&api_response) {
-        Ok(body) => Some(body),
-        Err(_) => None,
-    };
+    let body = serde_json::to_vec(&api_response).ok();
     
     let mut headers = HashMap::new();
     headers.insert("Content-Type".to_string(), "application/json".to_string());

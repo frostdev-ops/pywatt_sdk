@@ -219,7 +219,7 @@ pub fn validate_model(model: &ModelDescriptor) -> Result<()> {
     }
     
     if let Some(auto_col) = auto_increment_columns.first() {
-        if !auto_col.is_primary_key && model.primary_key.as_ref().map_or(true, |pk| !pk.contains(&auto_col.name)) {
+        if !auto_col.is_primary_key && model.primary_key.as_ref().is_none_or(|pk| !pk.contains(&auto_col.name)) {
             return Err(Error::ModelDefinition(
                 "Auto-increment column must be part of the primary key".to_string()
             ));

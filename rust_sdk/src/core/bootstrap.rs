@@ -828,7 +828,7 @@ where
         }
         
         // Legacy TCP connection setup (if not in IPC-only mode)
-        if !app_state.config.as_ref().map_or(false, |c| c.ipc_only) {
+        if !app_state.config.as_ref().is_some_and(|c| c.ipc_only) {
             if let Ok(url) = Url::parse(&init.orchestrator_api) {
                 let host = url.host_str().unwrap_or("localhost").to_string();
                 let http_port = url.port().unwrap_or(80);
@@ -917,15 +917,13 @@ where
 
     // Combine all processing handles into a single handle
     let combined_handle = tokio::spawn(async move {
-        // Wait for any of the processing tasks to complete
-        if join_handles.is_empty() {
-            // Only IPC processing handle
-            let _ = ipc_processing_handle.await;
-        } else {
-            // Wait for either IPC processing or any channel processing to finish
-            futures::future::select_all(
-                join_handles.into_iter().chain(std::iter::once(ipc_processing_handle))
-            ).await;
+        // Wait for all tasks to complete
+        let result = futures::future::select_all(
+            join_handles.into_iter().chain(std::iter::once(ipc_processing_handle))
+        ).await;
+        
+        if let Err(e) = result.0 {
+            error!("Task error: {:?}", e);
         }
     });
 

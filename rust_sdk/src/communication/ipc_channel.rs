@@ -453,8 +453,7 @@ impl MessageChannel for IpcChannel {
     async fn send(&self, message: EncodedMessage) -> MessageResult<()> {
         self.send_with_reconnect(message)
             .await
-            .map_err(|e| MessageError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| MessageError::IoError(std::io::Error::other(
                 format!("IPC channel error: {}", e),
             )))
     }
@@ -462,8 +461,7 @@ impl MessageChannel for IpcChannel {
     async fn receive(&self) -> MessageResult<EncodedMessage> {
         self.receive_with_reconnect()
             .await
-            .map_err(|e| MessageError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| MessageError::IoError(std::io::Error::other(
                 format!("IPC channel error: {}", e),
             )))
     }
@@ -475,8 +473,7 @@ impl MessageChannel for IpcChannel {
     async fn connect(&self) -> MessageResult<()> {
         self.connect_with_retry()
             .await
-            .map_err(|e| MessageError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| MessageError::IoError(std::io::Error::other(
                 format!("IPC channel connection error: {}", e),
             )))
     }
@@ -484,8 +481,7 @@ impl MessageChannel for IpcChannel {
     async fn disconnect(&self) -> MessageResult<()> {
         self.close()
             .await
-            .map_err(|e| MessageError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| MessageError::IoError(std::io::Error::other(
                 format!("IPC channel disconnect error: {}", e),
             )))
     }

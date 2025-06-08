@@ -368,30 +368,16 @@ mod mock {
 pub async fn create_database_connection(
     config: &DatabaseConfig,
 ) -> DatabaseResult<Box<dyn DatabaseConnection>> {
-    // First check if we're running as a module (under orchestrator)
-    if is_running_as_module() {
-        #[cfg(feature = "ipc")]
-        {
-            // Create an IPC-based connection
-            let conn = proxy_connection::ProxyDatabaseConnection::connect(config).await?;
-            return Ok(Box::new(conn) as Box<dyn DatabaseConnection>);
-        }
-        #[cfg(not(feature = "ipc"))]
-        {
-            return Err(DatabaseError::Configuration(
-                "IPC support is not enabled but running as a module. Enable the 'ipc' feature."
-                    .to_string(),
-            ));
-        }
-    }
-
-    // If not running as a module, use direct connections
-    let connection = match config.db_type {
+    match config.db_type {
         DatabaseType::Postgres => {
             #[cfg(feature = "postgres")]
             {
                 let conn = postgres::PostgresConnection::connect(config).await?;
-                Box::new(conn) as Box<dyn DatabaseConnection>
+                let boxed_conn = Box::new(conn) as Box<dyn DatabaseConnection>;
+                #[cfg(all(feature = "integration_tests", feature = "database"))]
+                return Ok(mock::create_mock_db_connection(boxed_conn));
+                #[cfg(not(all(feature = "integration_tests", feature = "database")))]
+                return Ok(boxed_conn);
             }
             #[cfg(not(feature = "postgres"))]
             {
@@ -404,7 +390,11 @@ pub async fn create_database_connection(
             #[cfg(feature = "mysql")]
             {
                 let conn = mysql::MySqlConnection::connect(config).await?;
-                Box::new(conn) as Box<dyn DatabaseConnection>
+                let boxed_conn = Box::new(conn) as Box<dyn DatabaseConnection>;
+                #[cfg(all(feature = "integration_tests", feature = "database"))]
+                return Ok(mock::create_mock_db_connection(boxed_conn));
+                #[cfg(not(all(feature = "integration_tests", feature = "database")))]
+                return Ok(boxed_conn);
             }
             #[cfg(not(feature = "mysql"))]
             {
@@ -417,7 +407,11 @@ pub async fn create_database_connection(
             #[cfg(feature = "sqlite")]
             {
                 let conn = sqlite::SqliteConnection::connect(config).await?;
-                Box::new(conn) as Box<dyn DatabaseConnection>
+                let boxed_conn = Box::new(conn) as Box<dyn DatabaseConnection>;
+                #[cfg(all(feature = "integration_tests", feature = "database"))]
+                return Ok(mock::create_mock_db_connection(boxed_conn));
+                #[cfg(not(all(feature = "integration_tests", feature = "database")))]
+                return Ok(boxed_conn);
             }
             #[cfg(not(feature = "sqlite"))]
             {
@@ -426,17 +420,6 @@ pub async fn create_database_connection(
                 ));
             }
         }
-    };
-
-    // For integration tests, wrap the connection in a mock
-    #[cfg(all(feature = "integration_tests", feature = "database"))]
-    {
-        Ok(mock::create_mock_db_connection(connection))
-    }
-
-    #[cfg(not(all(feature = "integration_tests", feature = "database")))]
-    {
-        Ok(connection)
     }
 }
 

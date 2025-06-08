@@ -52,7 +52,7 @@ impl OrchestratorInitExt for OrchestratorInit {
     }
 
     fn tcp_tls_enabled(&self) -> bool {
-        self.tcp_channel.as_ref().map_or(false, |config| config.tls_enabled)
+        self.tcp_channel.as_ref().is_some_and(|config| config.tls_enabled)
     }
 
     fn ipc_socket_path(&self) -> Option<PathBuf> {

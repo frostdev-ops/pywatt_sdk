@@ -3,8 +3,8 @@
 use std::fmt;
 use async_trait::async_trait;
 
-use crate::message::{EncodedMessage, MessageResult};
-use crate::tcp_types::ConnectionState;
+use crate::communication::message::{EncodedMessage, MessageResult};
+use crate::communication::tcp_types::ConnectionState;
 
 pub mod message;
 pub mod tcp_channel;

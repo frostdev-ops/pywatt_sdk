@@ -1,24 +1,31 @@
+#[cfg(feature = "jwt_auth")]
 use thiserror::Error;
 
-/// Errors that can occur during JWT authentication
-#[derive(Debug, Error)]
+/// Errors that can occur during JWT authentication.
+#[cfg(feature = "jwt_auth")]
+#[derive(Error, Debug)]
 pub enum JwtAuthError {
-    /// JWT token is invalid or expired
-    #[error("Invalid token: {0}")]
-    InvalidToken(String),
-    /// Required authorization header is missing
-    #[error("Missing Authorization header")]
-    MissingHeader,
-    /// JWT token is not well-formed
-    #[error("Malformed token")]
-    MalformedToken,
-    /// JWT verification failed
-    #[error("Token verification failed: {0}")]
-    VerificationFailed(String),
-    /// JWT payload could not be processed
-    #[error("Payload error: {0}")]
-    PayloadError(String),
-    /// Error from jsonwebtoken library
+    /// The token is missing from the Authorization header.
+    #[error("Missing JWT token")]
+    MissingToken,
+
+    /// The token signature is invalid.
+    #[error("Invalid JWT token signature")]
+    InvalidSignature,
+
+    /// The token claims are invalid.
+    #[error("Invalid JWT token claims: {0}")]
+    InvalidClaims(String),
+
+    /// Error decoding the token.
     #[error("JWT error: {0}")]
     JwtError(#[from] jsonwebtoken::errors::Error),
+
+    /// Error serializing or deserializing token claims.
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] serde_json::Error),
+
+    /// Error communicating with the proxy service.
+    #[error("Proxy error: {0}")]
+    ProxyError(String),
 }

@@ -49,11 +49,11 @@ pub struct HttpIpcMetrics {
 }
 
 // Global metrics instance
-static HTTP_IPC_METRICS: Lazy<HttpIpcMetrics> = Lazy::new(|| HttpIpcMetrics::default());
+static HTTP_IPC_METRICS: Lazy<HttpIpcMetrics> = Lazy::new(HttpIpcMetrics::default);
 
 /// Get reference to the global HTTP IPC metrics
 pub fn metrics() -> &'static HttpIpcMetrics {
-    &*HTTP_IPC_METRICS
+    &HTTP_IPC_METRICS
 }
 
 /// Subscribe to HTTP requests

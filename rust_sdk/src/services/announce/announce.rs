@@ -1,4 +1,4 @@
-use crate::ipc_types::Announce as AnnounceBlob;
+use crate::communication::ipc_types::Announce as AnnounceBlob;
 use std::io::Write;
 use thiserror::Error;
 use tracing::info;
@@ -21,7 +21,7 @@ pub enum AnnounceError {
 /// Handles broken pipe errors gracefully to prevent module crashes.
 pub fn send_announce(announce: &AnnounceBlob) -> Result<(), AnnounceError> {
     let message_to_orchestrator =
-        crate::ipc_types::ModuleToOrchestrator::Announce(announce.clone());
+        crate::communication::ipc_types::ModuleToOrchestrator::Announce(announce.clone());
     let json = serde_json::to_string(&message_to_orchestrator)?;
     
     // Try to send announcement, but handle broken pipe gracefully
@@ -59,4 +59,4 @@ pub fn send_announce(announce: &AnnounceBlob) -> Result<(), AnnounceError> {
             }
         }
     }
-}
+} 

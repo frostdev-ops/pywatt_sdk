@@ -1,23 +1,32 @@
+#[cfg(feature = "jwt_auth")]
 use axum::{
     http::{Request, StatusCode, header::AUTHORIZATION},
     response::{IntoResponse, Response},
 };
+#[cfg(feature = "jwt_auth")]
 use futures::future::{self, BoxFuture};
+#[cfg(feature = "jwt_auth")]
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+#[cfg(feature = "jwt_auth")]
 use serde::de::DeserializeOwned;
+#[cfg(feature = "jwt_auth")]
 use std::{
     convert::Infallible,
     marker::PhantomData,
     task::{Context, Poll},
 };
+#[cfg(feature = "jwt_auth")]
 use tower::{Layer, Service};
 
+use crate::security::jwt_auth::is_running_as_module;
+use crate::security::secret_client::register_for_redaction;
 
-use crate::jwt_auth::is_running_as_module;
-use crate::secret_client::register_for_redaction;
-
-#[cfg(feature = "ipc")]
-use crate::jwt_auth::proxy_adapter::{JwtProxyConfig, JwtProxyService, validate_token_proxy};
+#[cfg(all(feature = "jwt_auth", feature = "ipc"))]
+use crate::security::jwt_auth::proxy_adapter::{JwtProxyConfig, JwtProxyService, validate_token_proxy};
+#[cfg(all(feature = "jwt_auth", feature = "ipc"))]
+use std::sync::Arc;
+#[cfg(all(feature = "jwt_auth", feature = "ipc"))]
+use tokio::sync::Mutex;
 
 /// Axum middleware layer for validating Bearer JWTs with a shared HMAC secret.
 ///
