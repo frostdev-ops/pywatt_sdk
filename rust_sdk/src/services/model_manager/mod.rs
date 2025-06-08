@@ -30,6 +30,8 @@ pub use sdk_integration::ModelManager;
 
 
 // Import adapter implementations
+#[cfg(feature = "database")]
+use adapters::{SqliteAdapter, MySqlAdapter, PostgresAdapter};
 
 // Public API functions
 

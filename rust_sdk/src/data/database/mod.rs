@@ -381,9 +381,9 @@ pub async fn create_database_connection(
             }
             #[cfg(not(feature = "postgres"))]
             {
-                return Err(DatabaseError::Configuration(
+                Err(DatabaseError::Configuration(
                     "PostgreSQL support is not enabled. Enable the 'postgres' feature.".to_string(),
-                ));
+                ))
             }
         }
         DatabaseType::MySql => {
@@ -398,9 +398,9 @@ pub async fn create_database_connection(
             }
             #[cfg(not(feature = "mysql"))]
             {
-                return Err(DatabaseError::Configuration(
+                Err(DatabaseError::Configuration(
                     "MySQL support is not enabled. Enable the 'mysql' feature.".to_string(),
-                ));
+                ))
             }
         }
         DatabaseType::Sqlite => {
@@ -415,9 +415,9 @@ pub async fn create_database_connection(
             }
             #[cfg(not(feature = "sqlite"))]
             {
-                return Err(DatabaseError::Configuration(
+                Err(DatabaseError::Configuration(
                     "SQLite support is not enabled. Enable the 'sqlite' feature.".to_string(),
-                ));
+                ))
             }
         }
     }
