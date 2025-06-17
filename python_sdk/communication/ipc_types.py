@@ -329,7 +329,6 @@ class ModuleToOrchestrator(BaseModel):
     op: str = Field(..., description="Operation type")
     
     # Message data (only one should be set based on op)
-    identify: Optional[str] = None  # Module ID for identification
     announce: Optional[AnnounceBlob] = None
     get_secret: Optional[GetSecretRequest] = None
     rotation_ack: Optional[RotationAckRequest] = None
@@ -342,11 +341,6 @@ class ModuleToOrchestrator(BaseModel):
     
     # Inter-module routing
     route_to_module: Optional[Dict[str, Any]] = None  # Will be properly typed in Phase 2
-    
-    @classmethod
-    def identify_msg(cls, module_id: str) -> "ModuleToOrchestrator":
-        """Create an identify message."""
-        return cls(op="identify", identify=module_id)
     
     @classmethod
     def announce_msg(cls, announce: AnnounceBlob) -> "ModuleToOrchestrator":

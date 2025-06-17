@@ -116,16 +116,32 @@ async def bootstrap_module(
         
         # 6. Setup communication channels based on preferences
         tcp_channel = None
-        if channel_preferences and ChannelType.TCP in channel_preferences.preferred_channels:
-            try:
-                logger.debug("Setting up TCP channel")
-                tcp_channel = await setup_tcp_channel(init_data)
-                app_state.tcp_channel = tcp_channel
-                logger.info("TCP channel established successfully")
-            except Exception as e:
-                logger.warning(f"Failed to setup TCP channel: {e}")
-                if channel_preferences.require_tcp:
-                    raise BootstrapError(f"Required TCP channel failed: {e}")
+        
+        # Check if TCP channel config is provided in InitBlob
+        if init_data.tcp_channel:
+            # TCP channel available in InitBlob - connect unless explicitly disabled
+            should_connect_tcp = True
+            
+            # Only skip TCP if preferences explicitly disable it
+            if channel_preferences and not channel_preferences.use_tcp:
+                should_connect_tcp = False
+                logger.info("TCP channel available but disabled by preferences")
+            
+            if should_connect_tcp:
+                try:
+                    logger.debug("Setting up TCP channel from InitBlob configuration")
+                    tcp_channel = await setup_tcp_channel(init_data)
+                    app_state.tcp_channel = tcp_channel
+                    logger.info("TCP channel established successfully")
+                except Exception as e:
+                    logger.warning(f"Failed to setup TCP channel: {e}")
+                    # Check if it's required
+                    if init_data.tcp_channel.required:
+                        raise BootstrapError(f"Required TCP channel failed: {e}")
+        else:
+            # Legacy: Check preferences for TCP setup
+            if channel_preferences and ChannelType.TCP in channel_preferences.preferred_channels:
+                logger.warning("No TCP channel config in InitBlob but requested via preferences")
         
         # 7. Announce endpoints to orchestrator
         logger.debug(f"Announcing {len(endpoints)} endpoints")
@@ -156,21 +172,35 @@ async def bootstrap_module(
 async def setup_tcp_channel(init_data: InitBlob) -> TcpChannel:
     """Setup TCP channel for communication with orchestrator."""
     try:
-        # Parse orchestrator API URL to get connection details
-        from urllib.parse import urlparse
-        parsed = urlparse(init_data.orchestrator_api)
+        # Use TCP channel configuration from InitBlob
+        if not init_data.tcp_channel:
+            raise BootstrapError("No TCP channel configuration in InitBlob")
+        
+        tcp_config = init_data.tcp_channel
         
         config = ConnectionConfig(
-            host=parsed.hostname or "127.0.0.1",
-            port=parsed.port or 9900,
-            use_tls=parsed.scheme == "https",
+            host=tcp_config.host,
+            port=tcp_config.port,
+            use_tls=tcp_config.tls_enabled,
             timeout=30.0,
             max_retries=3,
             retry_delay=1.0
         )
         
+        logger.info(f"Connecting to TCP channel at {tcp_config.host}:{tcp_config.port}")
+        
         channel = TcpChannel(config)
         await channel.connect()
+        
+        # Send Identify message immediately after connecting
+        logger.debug(f"Sending Identify message with module_id: {init_data.module_id}")
+        identify_msg = ModuleToOrchestrator.identify_msg(init_data.module_id)
+        from ..communication.message import Message, EncodedMessage
+        msg = Message.new(identify_msg)
+        encoded = EncodedMessage.from_message(msg)
+        await channel.send(encoded)
+        logger.info(f"Successfully sent Identify message for module: {init_data.module_id}")
+        
         return channel
         
     except Exception as e:
