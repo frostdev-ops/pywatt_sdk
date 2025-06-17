@@ -424,6 +424,9 @@ pub struct IpcPortNegotiationResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "op")]
 pub enum ModuleToOrchestrator {
+    /// Module identification message sent immediately after connection
+    #[serde(rename = "identify")]
+    Identify(String),
     #[serde(rename = "announce")]
     Announce(AnnounceBlob),
     #[serde(rename = "get_secret")]

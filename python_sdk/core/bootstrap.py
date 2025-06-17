@@ -136,6 +136,17 @@ async def bootstrap_module(
         await send_announce(announcement)
         logger.info("Successfully announced endpoints to orchestrator")
         
+        # Send Identify message via IPC for IPC-only modules
+        if not tcp_channel:
+            logger.debug(f"Sending Identify message via IPC with module_id: {init_data.module_id}")
+            identify_msg = ModuleToOrchestrator.identify_msg(init_data.module_id)
+            # Send via stdout
+            import json
+            json_str = identify_msg.model_dump_json()
+            sys.stdout.write(json_str + '\n')
+            sys.stdout.flush()
+            logger.info(f"Successfully sent Identify message via IPC for module: {init_data.module_id}")
+        
         # 8. Start IPC processing task
         logger.debug("Starting IPC processing task")
         ipc_task = asyncio.create_task(
@@ -171,6 +182,16 @@ async def setup_tcp_channel(init_data: InitBlob) -> TcpChannel:
         
         channel = TcpChannel(config)
         await channel.connect()
+        
+        # Send Identify message immediately after connecting
+        logger.debug(f"Sending Identify message with module_id: {init_data.module_id}")
+        identify_msg = ModuleToOrchestrator.identify_msg(init_data.module_id)
+        from ..communication.message import Message, EncodedMessage
+        msg = Message.new(identify_msg)
+        encoded = EncodedMessage.from_message(msg)
+        await channel.send(encoded)
+        logger.info(f"Successfully sent Identify message for module: {init_data.module_id}")
+        
         return channel
         
     except Exception as e:

@@ -1,5 +1,6 @@
 use secrecy::SecretString;
 use std::sync::Arc;
+use std::io::Write;
 use thiserror::Error;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
@@ -749,7 +750,7 @@ where
         if let Some(tcp_config) = init_blob.tcp_channel {
             if preferences.use_tcp {
                 info!("Initializing TCP channel to {}", tcp_config.address);
-                match setup_tcp_channel_from_config(tcp_config.clone()).await {
+                match setup_tcp_channel_from_config(tcp_config.clone(), &init.module_id).await {
                     Ok(channel) => {
                         let channel_arc = Arc::new(channel);
                         app_state.tcp_channel = Some(channel_arc.clone());
@@ -846,6 +847,24 @@ where
                         
                         let config = crate::tcp_types::ConnectionConfig::new(host.clone(), tcp_port);
                         let channel = TcpChannel::new(config);
+                        
+                        // Send Identify message immediately after connecting
+                        debug!("Sending Identify message with module_id: {}", init.module_id);
+                        let identify_msg = ModuleToOrchestrator::Identify(init.module_id.clone());
+                        let msg = Message::new(identify_msg);
+                        match EncodedMessage::encode_with_format(&msg, EncodingFormat::Json) {
+                            Ok(encoded) => {
+                                if let Err(e) = channel.send(encoded).await {
+                                    warn!("Failed to send Identify message: {}", e);
+                                } else {
+                                    info!("Successfully sent Identify message for module: {}", init.module_id);
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Failed to encode Identify message: {}", e);
+                            }
+                        }
+                        
                         let channel_arc = Arc::new(channel);
                         app_state.tcp_channel = Some(channel_arc.clone());
                         app_state.tcp_capabilities = ChannelCapabilities::tcp_standard();
@@ -908,6 +927,28 @@ where
         endpoints,
     };
     send_announce(&announce)?;
+    
+    // Send Identify message via IPC for modules without TCP connection
+    if app_state.tcp_channel.is_none() {
+        debug!("Sending Identify message via IPC with module_id: {}", init.module_id);
+        let identify_msg = ModuleToOrchestrator::Identify(init.module_id.clone());
+        let json_str = serde_json::to_string(&identify_msg).map_err(|e| {
+            BootstrapError::Other(format!("Failed to serialize Identify message: {}", e))
+        })?;
+        // Send via stdout
+        if let Err(e) = std::io::Write::write_all(&mut std::io::stdout(), json_str.as_bytes()) {
+            warn!("Failed to send Identify message via stdout: {}", e);
+        } else {
+            if let Err(e) = std::io::Write::write_all(&mut std::io::stdout(), b"\n") {
+                warn!("Failed to send newline after Identify message: {}", e);
+            }
+            if let Err(e) = std::io::stdout().flush() {
+                warn!("Failed to flush stdout after Identify message: {}", e);
+            } else {
+                info!("Successfully sent Identify message via IPC for module: {}", init.module_id);
+            }
+        }
+    }
 
     // 10. Spawn IPC processing loop for stdin/stdout message handling
     #[cfg(feature = "ipc_channel")]
@@ -941,6 +982,7 @@ where
 /// Helper function to set up TCP channel from configuration
 async fn setup_tcp_channel_from_config(
     config: crate::ipc_types::TcpChannelConfig,
+    module_id: &str,
 ) -> Result<TcpChannel, String> {
     let connection_timeout = Duration::from_secs(5);
     
@@ -954,6 +996,24 @@ async fn setup_tcp_channel_from_config(
                 config.address.port(),
             );
             let channel = TcpChannel::new(tcp_config);
+            
+            // Send Identify message immediately after connecting
+            debug!("Sending Identify message with module_id: {}", module_id);
+            let identify_msg = ModuleToOrchestrator::Identify(module_id.to_string());
+            let msg = Message::new(identify_msg);
+            match EncodedMessage::encode_with_format(&msg, EncodingFormat::Json) {
+                Ok(encoded) => {
+                    if let Err(e) = channel.send(encoded).await {
+                        warn!("Failed to send Identify message: {}", e);
+                    } else {
+                        info!("Successfully sent Identify message for module: {}", module_id);
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to encode Identify message: {}", e);
+                }
+            }
+            
             Ok(channel)
         }
         Ok(Err(e)) => Err(format!("TCP connection failed: {}", e)),
