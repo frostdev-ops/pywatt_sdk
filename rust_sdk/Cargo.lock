@@ -1914,7 +1914,7 @@ dependencies = [
 
 [[package]]
 name = "pywatt_sdk"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "aho-corasick",
  "anyhow",

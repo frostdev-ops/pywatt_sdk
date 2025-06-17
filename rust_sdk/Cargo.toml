@@ -1,6 +1,6 @@
 [package]
 name = "pywatt_sdk"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 authors = ["James Kueller <james@pma-electric.com>"]
 description = "Standardized SDK for building PyWatt modules in Rust"
