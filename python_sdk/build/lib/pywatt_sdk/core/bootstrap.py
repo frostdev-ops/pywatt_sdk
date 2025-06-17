@@ -27,7 +27,7 @@ from ..communication.ipc_types import (
     OrchestratorToModule, ModuleToOrchestrator
 )
 from ..communication.ipc_stdio import read_init, send_announce
-from ..communication.tcp_channel import TcpChannel, ConnectionConfig
+from ..communication.tcp_channel import TcpChannel, ConnectionConfig, ReconnectPolicy
 from ..communication.message_channel import ChannelPreferences, ChannelType
 from ..security.secret_client import SecretClient, get_module_secret_client
 from ..security.typed_secret import TypedSecret
@@ -178,16 +178,19 @@ async def setup_tcp_channel(init_data: InitBlob) -> TcpChannel:
         
         tcp_config = init_data.tcp_channel
         
+        # Configure connection with exponential backoff retry
         config = ConnectionConfig(
             host=tcp_config.host,
             port=tcp_config.port,
             use_tls=tcp_config.tls_enabled,
-            timeout=30.0,
-            max_retries=3,
-            retry_delay=1.0
+            timeout=5.0,  # 5 second connection timeout
+            reconnect_policy=ReconnectPolicy.EXPONENTIAL_BACKOFF,
+            initial_delay=0.5,  # Start with 500ms delay
+            max_delay=5.0,     # Max 5 seconds between retries
+            multiplier=1.5     # 1.5x backoff multiplier
         )
         
-        logger.info(f"Connecting to TCP channel at {tcp_config.host}:{tcp_config.port}")
+        logger.info(f"Connecting to TCP channel at {tcp_config.host}:{tcp_config.port} with exponential backoff retry")
         
         channel = TcpChannel(config)
         await channel.connect()
