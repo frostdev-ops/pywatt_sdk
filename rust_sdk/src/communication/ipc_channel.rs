@@ -33,7 +33,7 @@ impl Default for IpcConnectionConfig {
     fn default() -> Self {
         Self {
             socket_path: PathBuf::from("/tmp/pywatt.sock"),
-            timeout: Duration::from_secs(5),
+            timeout: Duration::from_secs(30),
             reconnect_policy: ReconnectPolicy::ExponentialBackoff {
                 initial_delay: Duration::from_millis(100),
                 max_delay: Duration::from_secs(30),

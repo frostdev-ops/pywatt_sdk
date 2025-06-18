@@ -60,7 +60,7 @@ class ConnectionConfig:
     """Configuration for a TCP connection."""
     host: str = "localhost"
     port: int = 9000
-    timeout: float = 5.0
+    timeout: float = 30.0
     tls_config: Optional[TlsConfig] = None
     reconnect_policy: ReconnectPolicy = ReconnectPolicy.EXPONENTIAL_BACKOFF
     

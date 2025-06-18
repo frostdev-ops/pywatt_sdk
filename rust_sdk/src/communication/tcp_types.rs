@@ -31,7 +31,7 @@ impl Default for ConnectionConfig {
         Self {
             host: "localhost".to_string(),
             port: 9000,
-            timeout: Duration::from_secs(5),
+            timeout: Duration::from_secs(30),
             tls_config: None,
             reconnect_policy: ReconnectPolicy::ExponentialBackoff {
                 initial_delay: Duration::from_millis(100),

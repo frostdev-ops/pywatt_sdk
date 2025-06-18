@@ -183,7 +183,7 @@ async def setup_tcp_channel(init_data: InitBlob) -> TcpChannel:
             host=tcp_config.host,
             port=tcp_config.port,
             use_tls=tcp_config.tls_enabled,
-            timeout=5.0,  # 5 second connection timeout
+            timeout=30.0,  # 30 second connection timeout (increased from 5)
             reconnect_policy=ReconnectPolicy.EXPONENTIAL_BACKOFF,
             initial_delay=0.5,  # Start with 500ms delay
             max_delay=5.0,     # Max 5 seconds between retries

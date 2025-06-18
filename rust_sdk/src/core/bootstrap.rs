@@ -837,7 +837,7 @@ where
                 
                 debug!("Establishing legacy TCP connection to orchestrator at {}:{}", host, tcp_port);
                 
-                let connection_timeout = Duration::from_secs(5);
+                let connection_timeout = Duration::from_secs(30);
                 match tokio::time::timeout(
                     connection_timeout,
                     TcpStream::connect(format!("{0}:{1}", host, tcp_port))
@@ -984,7 +984,7 @@ async fn setup_tcp_channel_from_config(
     config: crate::ipc_types::TcpChannelConfig,
     module_id: &str,
 ) -> Result<TcpChannel, String> {
-    let connection_timeout = Duration::from_secs(5);
+    let connection_timeout = Duration::from_secs(30);
     
     match tokio::time::timeout(
         connection_timeout,
@@ -1027,7 +1027,7 @@ async fn setup_ipc_channel_from_config(
     config: crate::ipc_types::IpcChannelConfig,
 ) -> Result<IpcChannel, String> {
     let ipc_config = IpcConnectionConfig::new(config.socket_path)
-        .with_timeout(Duration::from_secs(5));
+        .with_timeout(Duration::from_secs(30));
     
     match IpcChannel::connect(ipc_config).await {
         Ok(channel) => Ok(channel),
