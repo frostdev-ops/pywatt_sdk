@@ -990,12 +990,14 @@ async fn setup_tcp_channel_from_config(
         connection_timeout,
         TcpStream::connect(config.address)
     ).await {
-        Ok(Ok(_stream)) => {
+        Ok(Ok(stream)) => {
             let tcp_config = crate::tcp_types::ConnectionConfig::new(
                 config.address.ip().to_string(),
                 config.address.port(),
             );
-            let channel = TcpChannel::new(tcp_config);
+            
+            // Use the connected stream instead of discarding it
+            let channel = TcpChannel::from_connected_stream(stream, tcp_config).await;
             
             // Send Identify message immediately after connecting
             debug!("Sending Identify message with module_id: {}", module_id);

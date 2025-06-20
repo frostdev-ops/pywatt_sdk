@@ -258,22 +258,23 @@ impl<T> AppState<T> {
                 ).await;
                 
                 // Try fallback if primary failed
-                if result.is_err() && routing_decision.fallback_channel.is_some() {
-                    let fallback_channel = routing_decision.fallback_channel.unwrap();
-                    tracing::debug!("Trying fallback channel: {:?}", fallback_channel);
-                    
-                    let fallback_result = self.send_via_channel_with_failover(
-                        fallback_channel,
-                        message,
-                    ).await;
-                    
-                    router.record_outcome(
-                        fallback_channel,
-                        fallback_result.is_ok(),
-                        None,
-                    ).await;
-                    
-                    return fallback_result;
+                if result.is_err() {
+                    if let Some(fallback_channel) = routing_decision.fallback_channel {
+                        tracing::debug!("Primary channel failed, trying fallback: {:?}", fallback_channel);
+                        
+                        let fallback_result = self.send_via_channel_with_failover(
+                            fallback_channel,
+                            message,
+                        ).await;
+                        
+                        router.record_outcome(
+                            fallback_channel,
+                            fallback_result.is_ok(),
+                            None,
+                        ).await;
+                        
+                        return fallback_result;
+                    }
                 }
                 
                 return result;

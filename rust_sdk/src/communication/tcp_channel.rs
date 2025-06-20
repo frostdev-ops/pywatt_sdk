@@ -29,6 +29,9 @@ pub struct TcpChannel {
     state: Arc<Mutex<ConnectionState>>,
     /// Connection attempts counter for reconnection logic.
     connect_attempts: Arc<Mutex<u32>>,
+    /// Whether this channel was created from an accepted connection (server-side).
+    /// Server-accepted connections should never attempt to reconnect.
+    is_server_accepted: bool,
 }
 
 impl TcpChannel {
@@ -39,6 +42,7 @@ impl TcpChannel {
             stream: Arc::new(Mutex::new(None)),
             state: Arc::new(Mutex::new(ConnectionState::Disconnected)),
             connect_attempts: Arc::new(Mutex::new(0)),
+            is_server_accepted: false,
         }
     }
     
@@ -81,7 +85,10 @@ impl TcpChannel {
         // EncodedMessage::read_from_async handles format detection.
         
         // Create the channel with the already connected stream
-        let channel = Self::new(config);
+        let mut channel = Self::new(config);
+        
+        // Mark this as a server-accepted connection
+        channel.is_server_accepted = true;
 
         // Manually set the stream and state for the accepted connection
         // This bypasses the usual connect() logic which tries to establish a new connection.
@@ -96,6 +103,52 @@ impl TcpChannel {
             *state_guard = ConnectionState::Connected;
             // state_guard is dropped here as it goes out of scope
         }
+        
+        channel
+    }
+    
+    /// Create a TcpChannel from an already connected stream (client-side).
+    /// 
+    /// This is used when the client has already established a connection and needs
+    /// to create a TcpChannel to communicate with the server. Unlike the normal 
+    /// connect flow, the connection is already established and ready to use.
+    ///
+    /// This method is fully asynchronous and properly handles connection state management.
+    /// The wire protocol includes message encoding format, so no separate encoding configuration
+    /// is required.
+    ///
+    /// # Arguments
+    /// * `stream` - The connected TCP stream
+    /// * `config` - The connection configuration used to establish the stream
+    ///
+    /// # Returns
+    /// A new TcpChannel instance wrapping the connected stream
+    pub async fn from_connected_stream(
+        stream: TokioTcpStream, 
+        config: ConnectionConfig
+    ) -> Self {
+        // Create the channel with the provided configuration
+        let mut channel = Self::new(config);
+        
+        // This is a client-side connection (not server-accepted)
+        channel.is_server_accepted = false;
+
+        // Manually set the stream and state for the connected stream
+        // This bypasses the usual connect() logic which tries to establish a new connection.
+        {
+            let mut stream_guard = channel.stream.lock().await;
+            *stream_guard = Some(stream);
+            // stream_guard is dropped here as it goes out of scope
+        }
+        
+        {
+            let mut state_guard = channel.state.lock().await;
+            *state_guard = ConnectionState::Connected;
+            // state_guard is dropped here as it goes out of scope
+        }
+        
+        info!("Created TcpChannel from already connected stream to {}:{}", 
+              channel.config.host, channel.config.port);
         
         channel
     }
@@ -380,6 +433,15 @@ impl TcpChannel {
     
     /// Try to reconnect if disconnected.
     async fn ensure_connected(&self) -> NetworkResult<()> {
+        // Server-accepted connections should never attempt to reconnect
+        if self.is_server_accepted {
+            let current_state = *self.state.lock().await;
+            return match current_state {
+                ConnectionState::Connected => Ok(()),
+                _ => Err(NetworkError::ConnectionClosed),
+            };
+        }
+        
         // Check current state
         let current_state = *self.state.lock().await;
         
@@ -404,6 +466,11 @@ impl TcpChannel {
         match self.send_message(&message).await {
             Ok(()) => Ok(()),
             Err(e) => {
+                // For server-accepted connections, don't attempt reconnection
+                if self.is_server_accepted {
+                    return Err(e);
+                }
+                
                 // If sending failed due to connection, try to reconnect and retry once
                 if matches!(e, 
                     NetworkError::ConnectionError(_) | 
@@ -432,6 +499,11 @@ impl TcpChannel {
         match self.receive_message().await {
             Ok(message) => Ok(message),
             Err(e) => {
+                // For server-accepted connections, don't attempt reconnection
+                if self.is_server_accepted {
+                    return Err(e);
+                }
+                
                 // If receiving failed due to connection, try to reconnect and retry once
                 if matches!(e, 
                     NetworkError::ConnectionError(_) | 
@@ -715,6 +787,96 @@ mod tests {
         
         // Wait for the server to finish
         server_handle.await.unwrap();
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_server_accepted_no_reconnect() -> NetworkResult<()> {
+        // Create a test TCP stream
+        let server_port = fastrand::u16(20000..30000);
+        let server_addr_str = format!("127.0.0.1:{}", server_port);
+        
+        // Start a listener
+        let listener = TcpListener::bind(&server_addr_str).await?;
+        
+        // Connect a client
+        let client_stream = TcpStream::connect(&server_addr_str).await?;
+        let client_addr = client_stream.local_addr()?;
+        
+        // Accept the connection on server side
+        let (server_stream, _) = listener.accept().await?;
+        
+        // Create a TcpChannel from accepted stream (server-side)
+        let server_channel = TcpChannel::from_accepted_stream(server_stream, client_addr).await;
+        
+        // Verify it's marked as server-accepted
+        assert!(server_channel.is_server_accepted);
+        assert_eq!(server_channel.state().await, ConnectionState::Connected);
+        
+        // Close the client stream to simulate disconnection
+        drop(client_stream);
+        
+        // Give it a moment for the disconnection to be detected
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        
+        // Try to receive - should fail with ConnectionClosed, NOT attempt reconnection
+        let result = server_channel.receive().await;
+        assert!(result.is_err());
+        
+        // Verify the state is now disconnected
+        assert_eq!(server_channel.state().await, ConnectionState::Disconnected);
+        
+        // Try to receive again - should still fail without reconnection attempt
+        let result2 = server_channel.receive().await;
+        assert!(result2.is_err());
+        
+        // Ensure ensure_connected returns error for server-accepted connections
+        let connect_result = server_channel.ensure_connected().await;
+        assert!(connect_result.is_err());
+        assert!(matches!(connect_result, Err(NetworkError::ConnectionClosed)));
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_from_connected_stream() -> NetworkResult<()> {
+        // Start a test server
+        let server_port = fastrand::u16(30000..40000);
+        let server_addr_str = format!("127.0.0.1:{}", server_port);
+        
+        // Start server in the background
+        let _server = mock_tcp_server(server_port).await?;
+        
+        // Give the server a moment to start up
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        
+        // Create a connected TCP stream (client-side)
+        let stream = TcpStream::connect(&server_addr_str).await?;
+        
+        // Create a TcpChannel from the connected stream
+        let config = ConnectionConfig::new("127.0.0.1", server_port);
+        let channel = TcpChannel::from_connected_stream(stream, config).await;
+        
+        // Verify the channel's state is Connected
+        assert_eq!(channel.state().await, ConnectionState::Connected);
+        
+        // Verify it's not marked as server-accepted (this is client-side)
+        assert!(!channel.is_server_accepted);
+        
+        // Test that we can send and receive messages
+        let test_message = Message::new("Hello from connected stream!");
+        let encoded = test_message.encode().unwrap();
+        
+        // Send the message
+        channel.send(encoded).await.unwrap();
+        
+        // Receive the echoed message
+        let received = channel.receive().await.unwrap();
+        
+        // Decode and check
+        let content: String = received.decode().unwrap();
+        assert_eq!(content, "Hello from connected stream!");
         
         Ok(())
     }
